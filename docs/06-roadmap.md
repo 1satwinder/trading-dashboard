@@ -12,10 +12,13 @@ nail the UI before wiring a real API.
 
 ## Phase 1 — Project setup
 
-- [ ] Scaffold Vite + Vue 3 + TS project.
-- [ ] Add Pinia, Vue Router, PrimeVue (Aura dark), Tailwind + `tailwindcss-primeui`.
-- [ ] Configure ESLint + Prettier + `vue-tsc`.
-- [ ] Set up design tokens (colors, typography) from `03-design-system.md`.
+- [x] Scaffold Vite + Vue 3 + TS project.
+- [x] Add Pinia, Vue Router, PrimeVue (Aura dark), Tailwind + `tailwindcss-primeui`.
+- [x] Configure ESLint + Prettier + `vue-tsc`.
+- [x] Set up design tokens (colors, typography) from `03-design-system.md`.
+      _(Custom Aura preset in `src/theme/preset.ts`: indigo primary + near-black
+      surfaces + soft-white text. Trading-domain tokens (buy/sell/profit/loss) in
+      Tailwind `@theme`. Inter loaded via `@fontsource-variable/inter`.)_
 
 ## Phase 2 — Layout shell
 

@@ -1,1 +1,29 @@
+@import 'tailwindcss';
+@import 'tailwindcss-primeui';
 @import './base.css';
+
+/*
+ * Align Tailwind's `dark:` variant with PrimeVue's darkModeSelector (.app-dark).
+ * See main.ts theme options and docs/03-design-system.md.
+ */
+@custom-variant dark (&:where(.app-dark, .app-dark *));
+
+/*
+ * Trading-domain color tokens. PrimeVue owns generic UI meaning
+ * (primary/success/danger); these encode *business* meaning and generate
+ * Tailwind utilities: text-up, bg-down, text-buy, text-sell, text-profit,
+ * text-loss, etc.
+ *
+ * `up` / `down` are the single source of truth (green = positive, red =
+ * negative). The buy/sell/profit/loss tokens are aliases so they can never
+ * drift apart — change one hex and everything updates.
+ */
+@theme {
+  --color-up: #16c784;
+  --color-down: #ea3943;
+
+  --color-buy: var(--color-up);
+  --color-sell: var(--color-down);
+  --color-profit: var(--color-up);
+  --color-loss: var(--color-down);
+}
