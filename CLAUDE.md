@@ -1,0 +1,121 @@
+# CLAUDE.md
+
+Guidance for AI agents (and humans) working in this repository.
+
+## Project
+
+**xtrading** — a responsive stock trading dashboard built as a **portfolio project**.
+Goal: a polished, professional fintech UI that works on desktop and mobile, with clean,
+typed, well-architected front-end code. Prioritize UX polish over feature breadth.
+
+Data is **mock-first**: build the UI against static/mock data; a real market-data API
+comes in a later phase. Buy/Sell is simulated (no real brokerage).
+
+## Tech stack
+
+- **Vue 3** (Composition API, `<script setup>`) + **TypeScript**
+- **Vite** (build), **Pinia** (state), **Vue Router** (routing)
+- **PrimeVue 4** (Aura preset, styled mode) for components
+- **Tailwind CSS v4** (`@tailwindcss/vite`) for layout/utilities
+- **tailwindcss-primeui** — the bridge exposing PrimeVue tokens as Tailwind utilities
+- **lightweight-charts** (planned) for price charts; `lucide-vue-next` / `primeicons` for icons
+- **Inter** font via `@fontsource-variable/inter`
+
+Node: `^22.18.0 || >=24.12.0`.
+
+## Commands
+
+```bash
+npm run dev          # start Vite dev server (http://localhost:5173)
+npm run build        # type-check + production build
+npm run preview      # preview the production build
+npm run type-check   # vue-tsc --build
+npm run lint         # oxlint + eslint (autofix)
+npm run format       # prettier
+npm run test:unit    # vitest
+```
+
+Prefer `npm run type-check` for ground-truth TS errors (the in-editor TS server can
+show stale errors right after installing a package).
+
+## Architecture (see docs for detail)
+
+```
+src/
+├── components/   layout/ (shell), common/ (PriceTag, Sparkline, StatCard), feature dirs
+├── views/        route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
+├── stores/       Pinia stores (useUiStore, useWatchlistStore, usePortfolioStore, …)
+├── services/     data access layer (mock JSON now, real API later)
+├── composables/  useBreakpoint, formatters, …
+├── theme/        preset.ts — customized PrimeVue Aura preset
+├── types/        shared TS types
+├── router/       Vue Router config
+└── main.ts, App.vue
+```
+
+Data flow: **View → Pinia store → service layer → (mock | API)**. Keep provider details
+behind `services/` so they can be swapped without touching views.
+
+`@/` is aliased to `src/`.
+
+## Design system & color tokens (important)
+
+Dark-first. There is **one source of truth per concern** — do not create parallel palettes.
+
+- **Component chrome + brand** → PrimeVue/Aura tokens, customized in `src/theme/preset.ts`
+  (indigo `primary` `#4F8CFF`, near-black `surface` ramp, soft-white text). Use via the
+  Tailwind bridge: `bg-surface-900`, `border-surface-700`, `text-primary`,
+  `text-muted-color`, and PrimeVue `severity="success"/"danger"` for generic UI state.
+- **Trading meaning** → domain tokens in `@theme` (`src/assets/main.css`). Use the
+  generated utilities `text-buy` / `text-sell` / `text-profit` / `text-loss` /
+  `text-up` / `bg-down`, **never** raw `text-green-500`/`text-red-500`. `up`/`down` are
+  the source of truth; buy/sell/profit/loss are aliases of them.
+- **Layout** → plain Tailwind utilities.
+- **App chrome** → `--xt-bg` / `--xt-text` in `base.css` (only for the pre-mount `<body>`
+  paint; kept in sync with `surface.950`).
+
+Reserve green/red strictly for price/performance — never as generic accents.
+
+Numbers (prices, P/L): use Tailwind's `tabular-nums` so digits don't jitter.
+
+### Gotchas
+
+- **CSS layer order matters.** `main.ts` sets PrimeVue `cssLayer.order: 'theme, base,
+  primevue'` so Tailwind utilities can override PrimeVue component styles without
+  `!important`. Don't remove this.
+- **Dark mode** is driven by `.app-dark` on `<html>` (`darkModeSelector`), aligned with
+  Tailwind's `dark:` variant via `@custom-variant dark` in `main.css`.
+- The Inter family name is `'Inter Variable'` (listed first in `base.css`).
+- CSS-only side-effect imports use explicit `.css` paths (e.g.
+  `@fontsource-variable/inter/index.css`) to satisfy TypeScript.
+
+## Conventions
+
+- TypeScript everywhere; `<script setup lang="ts">`.
+- Responsive: left sidebar (desktop) ↔ bottom tab bar (mobile); breakpoints
+  desktop ≥1024 / tablet 768–1023 / mobile <768.
+- Keep the docs current: when a meaningful decision changes, append an ADR to
+  `docs/07-decisions.md` and update the relevant doc.
+- Run `npm run type-check` and `npm run lint` before considering a change done.
+
+## Documentation
+
+Detailed docs live in [`docs/`](./docs/):
+
+- [Docs index](./docs/README.md)
+- [Overview](./docs/01-overview.md) — vision, goals, scope
+- [Tech stack](./docs/02-tech-stack.md)
+- [Design system](./docs/03-design-system.md) — colors, tokens, the bridge, typography
+- [Architecture](./docs/04-architecture.md) — structure, routing, stores, components
+- [Features](./docs/05-features.md) — pages / information architecture
+- [Roadmap](./docs/06-roadmap.md) — phased plan and status
+- [Decisions](./docs/07-decisions.md) — ADR log
+
+UI mockups (reference designs) are in [`UI mockups/`](./UI%20mockups/).
+
+## Current status
+
+Phase 1 (project setup) is complete: scaffold, PrimeVue + Tailwind v4 integration, and
+design tokens are done. **Next: Phase 2 — layout shell** (`AppSidebar` ↔ `AppBottomNav`,
+`AppTopbar`, `useUiStore` + `useBreakpoint`, routing skeleton). See the roadmap for the
+authoritative, up-to-date status.
