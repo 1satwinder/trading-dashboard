@@ -1,37 +1,35 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
-import Button from 'primevue/button'
+import { watch } from 'vue'
+import { RouterView } from 'vue-router'
+import AppSidebar from '@/components/layout/AppSidebar.vue'
+import AppTopbar from '@/components/layout/AppTopbar.vue'
+import AppBottomNav from '@/components/layout/AppBottomNav.vue'
+import { useBreakpoint } from '@/composables/useBreakpoint'
+import { useUiStore } from '@/stores/ui'
+
+const { isDesktop } = useBreakpoint()
+const ui = useUiStore()
+
+// Collapse the sidebar to icons on tablet widths; expand on desktop.
+// The manual toggle in the top bar overrides this until the next breakpoint change.
+watch(
+  isDesktop,
+  (desktop) => ui.setSidebarCollapsed(!desktop),
+  { immediate: true },
+)
 </script>
 
 <template>
-  <!-- Temporary verification shell. Replaced by the real layout in Phase 2. -->
-  <div class="min-h-screen">
-    <header class="flex items-center gap-6 border-b border-surface-700 px-6 py-4">
-      <span class="text-xl font-semibold text-primary">xtrading</span>
-      <nav class="flex gap-4 text-surface-300">
-        <RouterLink to="/" class="hover:text-surface-0">Watchlist</RouterLink>
-        <RouterLink to="/chart" class="hover:text-surface-0">Chart</RouterLink>
-      </nav>
-      <div class="ml-auto flex items-center gap-2">
-        <Button label="Buy" icon="pi pi-arrow-up" severity="success" size="small" />
-        <Button label="Sell" icon="pi pi-arrow-down" severity="danger" size="small" />
-      </div>
-    </header>
+  <div class="flex min-h-screen bg-surface-950 text-color">
+    <AppSidebar class="hidden md:flex" />
 
-    <main class="p-6">
-      <div class="rounded-border border border-surface-700 bg-surface-900 p-6">
-        <p class="text-muted-color">
-          PrimeVue + Tailwind are wired up. This placeholder confirms the dark theme,
-          semantic colors, and utilities work. The real layout shell comes next.
-        </p>
-        <p class="mt-3 flex gap-4 font-semibold tabular-nums">
-          <span class="text-profit">+2.4% profit</span>
-          <span class="text-loss">-0.8% loss</span>
-          <span class="text-buy">BUY</span>
-          <span class="text-sell">SELL</span>
-        </p>
+    <div class="flex min-w-0 flex-1 flex-col">
+      <AppTopbar />
+      <main class="flex-1 p-4 pb-24 md:p-6 md:pb-6">
         <RouterView />
-      </div>
-    </main>
+      </main>
+    </div>
+
+    <AppBottomNav class="md:hidden" />
   </div>
 </template>

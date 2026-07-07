@@ -22,10 +22,10 @@ nail the UI before wiring a real API.
 
 ## Phase 2 — Layout shell
 
-- [ ] Responsive `AppSidebar` ↔ `AppBottomNav`.
-- [ ] `AppTopbar` (logo, search, bell, user menu).
-- [ ] `useUiStore` + `useBreakpoint` composable.
-- [ ] Routing skeleton for all pages.
+- [x] Responsive `AppSidebar` ↔ `AppBottomNav`.
+- [x] `AppTopbar` (logo, search, bell, user menu).
+- [x] `useUiStore` + `useBreakpoint` composable.
+- [x] Routing skeleton for all pages.
 
 ## Phase 3 — Core components & Watchlist
 
