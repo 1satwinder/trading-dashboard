@@ -29,8 +29,11 @@ nail the UI before wiring a real API.
 
 ## Phase 3 — Core components & Watchlist
 
-- [ ] `PriceTag`, `Sparkline`, `StatCard`.
-- [ ] Watchlist page with PrimeVue `DataTable` + mock data.
+- [x] `PriceTag`, `Sparkline`, `StatCard`.
+- [x] Watchlist page with PrimeVue `DataTable` + mock data.
+      _(Mock data + async `marketData` service → `watchlist`/`portfolio` stores →
+      view. Stat cards for portfolio summary; sortable table with avatar, price,
+      colored change %, and trend sparkline. Sparkline column hidden on mobile.)_
 
 ## Phase 4 — Portfolio & Chart
 

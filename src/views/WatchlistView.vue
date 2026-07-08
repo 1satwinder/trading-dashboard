@@ -1,8 +1,107 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { onMounted } from 'vue'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import Avatar from 'primevue/avatar'
+import StatCard from '@/components/common/StatCard.vue'
+import PriceTag from '@/components/common/PriceTag.vue'
+import Sparkline from '@/components/common/Sparkline.vue'
+import { useWatchlistStore } from '@/stores/watchlist'
+import { usePortfolioStore } from '@/stores/portfolio'
+import { formatCurrency } from '@/utils/format'
+
+const watchlist = useWatchlistStore()
+const portfolio = usePortfolioStore()
+
+onMounted(() => {
+  watchlist.load()
+  portfolio.load()
+})
+</script>
 
 <template>
-  <section>
-    <h1 class="text-xl font-semibold text-color">Watchlist</h1>
-    <p class="mt-1 text-sm text-muted-color">Your followed symbols will appear here.</p>
+  <section class="space-y-6">
+    <!-- Portfolio summary -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatCard
+        label="Portfolio Value"
+        :value="portfolio.summary ? formatCurrency(portfolio.summary.totalValue) : '—'"
+        icon="pi pi-wallet"
+      >
+        <template v-if="portfolio.summary" #default>
+          <PriceTag :value="portfolio.summary.dayChangePercent" format="percent" show-arrow />
+          <span>today</span>
+        </template>
+      </StatCard>
+
+      <StatCard
+        label="Buying Power"
+        :value="portfolio.summary ? formatCurrency(portfolio.summary.buyingPower) : '—'"
+        icon="pi pi-dollar"
+      />
+
+      <StatCard label="Day's P/L" icon="pi pi-chart-line">
+        <template #value>
+          <PriceTag
+            v-if="portfolio.summary"
+            :value="portfolio.summary.dayChange"
+            format="currency"
+            show-arrow
+          />
+          <span v-else>—</span>
+        </template>
+        <template v-if="portfolio.summary" #default>
+          <PriceTag :value="portfolio.summary.dayChangePercent" format="percent" />
+        </template>
+      </StatCard>
+    </div>
+
+    <!-- Watchlist table -->
+    <div class="overflow-hidden rounded-border border border-surface-800 bg-surface-900">
+      <div class="border-b border-surface-800 px-4 py-3">
+        <h2 class="font-semibold text-color">Watchlist</h2>
+      </div>
+
+      <DataTable
+        :value="watchlist.items"
+        :loading="watchlist.loading"
+        data-key="symbol"
+        row-hover
+      >
+        <Column field="symbol" header="Symbol" sortable>
+          <template #body="{ data }">
+            <div class="flex items-center gap-3">
+              <Avatar :label="data.symbol.charAt(0)" shape="circle" />
+              <div>
+                <div class="font-semibold text-color">{{ data.symbol }}</div>
+                <div class="text-xs text-muted-color">{{ data.name }}</div>
+              </div>
+            </div>
+          </template>
+        </Column>
+
+        <Column field="price" header="Last Price" sortable>
+          <template #body="{ data }">
+            <span class="tabular-nums text-color">{{ formatCurrency(data.price) }}</span>
+          </template>
+        </Column>
+
+        <Column field="changePercent" header="Change %" sortable>
+          <template #body="{ data }">
+            <PriceTag :value="data.changePercent" format="percent" show-arrow />
+          </template>
+        </Column>
+
+        <Column
+          header="Trend"
+          header-class="hidden sm:table-cell"
+          body-class="hidden sm:table-cell"
+        >
+          <template #body="{ data }">
+            <Sparkline :data="data.sparkline" />
+          </template>
+        </Column>
+      </DataTable>
+    </div>
   </section>
 </template>
