@@ -8,8 +8,13 @@ Guidance for AI agents (and humans) working in this repository.
 Goal: a polished, professional fintech UI that works on desktop and mobile, with clean,
 typed, well-architected front-end code. Prioritize UX polish over feature breadth.
 
-Data is **mock-first**: build the UI against static/mock data; a real market-data API
-comes in a later phase. Buy/Sell is simulated (no real brokerage).
+It is evolving into a **full-stack** app: real market data + symbol search, a persisted
+watchlist, and **paper trading via Alpaca**. Data strategy is **mock-first**, then
+frontend-direct market data (local-dev spike), then a **backend-for-frontend (BFF)**.
+
+**Critical rule:** Alpaca (trading) keys are secret and its API isn't browser-CORS
+-friendly → **trading is server-side only, never called from the browser**. Market-data
+keys must also move server-side before deploying. See `docs/04-architecture.md`.
 
 ## Tech stack
 
@@ -53,8 +58,11 @@ src/
 └── main.ts, App.vue
 ```
 
-Data flow: **View → Pinia store → service layer → (mock | API)**. Keep provider details
-behind `services/` so they can be swapped without touching views.
+Data flow: **View → Pinia store → service layer → (mock | frontend-direct | BFF)**.
+Keep all provider/backend details behind `services/` so the data source can evolve
+without touching views. External providers: **Alpaca** (paper trading, server-side only)
++ **Finnhub** (symbol search/quotes/candles/news). BFF = TypeScript serverless
+(Vercel/Netlify); single shared paper account, no auth. See ADR-009/010/012.
 
 `@/` is aliased to `src/`.
 
@@ -115,7 +123,8 @@ UI mockups (reference designs) are in [`UI mockups/`](./UI%20mockups/).
 
 ## Current status
 
-Phase 1 (project setup) is complete: scaffold, PrimeVue + Tailwind v4 integration, and
-design tokens are done. **Next: Phase 2 — layout shell** (`AppSidebar` ↔ `AppBottomNav`,
-`AppTopbar`, `useUiStore` + `useBreakpoint`, routing skeleton). See the roadmap for the
-authoritative, up-to-date status.
+Phases 1–3 complete: project setup, responsive layout shell, and the Watchlist page
+(core components + `DataTable`) on **mock data**. **Next: Phase 4 — symbol search + live
+watchlist** using a real market-data provider (frontend-direct spike), with the
+watchlist persisted in `localStorage`. A backend-for-frontend and Alpaca paper trading
+come in Phases 7–8. See `docs/06-roadmap.md` for authoritative status.

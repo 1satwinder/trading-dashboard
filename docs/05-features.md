@@ -12,24 +12,35 @@
 | **News** | Market news feed | Article cards, filter by symbol/category |
 | **Settings** | Preferences | Theme toggle, display options |
 
+## Key feature flows
+
+- **Symbol search** — top-bar autocomplete (PrimeVue `AutoComplete`) querying the
+  market-data provider's search endpoint; results link to the chart / add to watchlist.
+- **Watchlist** — add/remove searched symbols; persisted (interim `localStorage`,
+  later backend + DB); live quotes from the provider.
+- **Paper trading** — from the chart/order panel, place a (paper) order via Alpaca
+  through the BFF; reflect order status and resulting positions in the portfolio.
+
 ## Global UI
 
 - **Top bar:** brand logo, centered search, notifications bell, user avatar/menu.
 - **Navigation:** left sidebar (desktop) ↔ bottom tab bar (mobile).
-- **Search:** symbol autocomplete (PrimeVue `AutoComplete` later).
+- **Search:** symbol autocomplete (PrimeVue `AutoComplete`).
 
 ## Feature backlog (rough priority)
 
-1. Responsive layout shell (sidebar + topbar + bottom nav).
-2. `PriceTag` + a reusable data table.
-3. Watchlist page with mock data.
-4. Portfolio page (allocation + holdings + P/L).
-5. Chart page (candlestick + timeframe).
-6. Markets page (indices + movers + sectors).
-7. News page.
-8. Settings + theme toggle (light theme variant).
-9. Real market-data API integration.
-10. Simulated order flow (Buy/Sell → portfolio updates).
+1. ~~Responsive layout shell (sidebar + topbar + bottom nav).~~ ✅
+2. ~~`PriceTag`, `Sparkline`, `StatCard` + data table.~~ ✅
+3. ~~Watchlist page with mock data.~~ ✅
+4. **Symbol search** (real provider) + **watchlist persistence** (`localStorage`).
+5. **Live market data** for the watchlist (real quotes).
+6. Portfolio page (allocation + holdings + P/L).
+7. Chart page (candlestick + timeframe) from real candle data.
+8. Markets page (indices + movers + sectors).
+9. News page.
+10. **Backend-for-frontend (BFF)**: hide keys, cache, proxy providers.
+11. **Alpaca paper trading**: order placement + status + positions via BFF.
+12. Settings + theme toggle (light theme variant).
 
 ## Open questions / decisions pending
 

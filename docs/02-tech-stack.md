@@ -33,9 +33,37 @@
 - **Type checking:** `vue-tsc`.
 - **Testing (later):** Vitest (unit) + Vue Test Utils; optionally Playwright (e2e).
 
-## Candidate data sources (later phases)
+## Data providers & backend
 
-> Start with **mock/static JSON**. Wire a real API only after the UI is solid.
+The app integrates two kinds of external service, plus (eventually) our own backend.
 
-- Finnhub, Alpha Vantage, Twelve Data, or Polygon.io (free tiers, rate-limited).
-- Abstract data access behind a service layer so the provider can be swapped.
+### Trading — Alpaca (paper)
+
+- **Alpaca Paper Trading API** for orders, order status, positions, and account.
+  Free real-time paper account; a strong portfolio demonstration.
+- Keys are **secret** and the API is **not browser-CORS-friendly** → Alpaca is only
+  ever called **server-side** (see the BFF in `04-architecture.md`). No exceptions.
+- Note: Alpaca has market data (bars/quotes) but **no symbol search**, so a
+  search-capable market-data provider is still required.
+
+### Market data + symbol search — Finnhub
+
+> **Decided:** Finnhub (ADR-009). Chosen over Alpha Vantage (free tier ~25 req/day is
+> too tight) and Twelve Data.
+
+- **Finnhub** for symbol search (`/search`), quotes, candles, and news; ~60 req/min free
+  tier, browser CORS, and a WebSocket for real-time updates later.
+- Kept behind the service layer / BFF so it can be swapped if needed.
+
+### Backend-for-frontend (BFF) — planned
+
+- A thin proxy that holds all API keys, **caches** market data (to survive tight
+  free tiers), and brokers Alpaca trading. Introduced once trading begins.
+- **Decided stack:** TypeScript **serverless functions** (Vercel/Netlify) — one language
+  across the stack, keys stay server-side, nothing to operate (ADR-010).
+- **Account model:** single shared Alpaca **paper** account, no user auth (ADR-012).
+
+### Service-layer principle
+
+- All data access stays behind `src/services/` so the provider — and the
+  frontend-direct → BFF transition — can change without touching views or stores.

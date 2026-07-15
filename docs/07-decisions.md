@@ -52,8 +52,57 @@ decision is made. Keep them short.
 - **Status:** Accepted
 - **Context:** UI should be solid before depending on a rate-limited external API.
 - **Decision:** Start with mock/static JSON behind a service layer; integrate a real
-  provider (e.g. Finnhub/Alpha Vantage) in a later phase.
+  provider in a later phase.
 - **Consequences:** Provider can be swapped without touching views/components.
+
+## ADR-008 — Scope: full-stack app with real data + paper trading
+
+- **Status:** Accepted
+- **Context:** The project began as a front-end showcase on mock data. Goal now is to
+  demonstrate full-stack skills with real market data and real (paper) order flow.
+- **Decision:** Expand scope to a full-stack app: live market data + symbol search, a
+  persisted watchlist, and **paper trading via Alpaca**. Real money stays out of scope.
+- **Consequences:** Requires external providers and (eventually) our own backend;
+  roadmap re-planned into Phases 4–10.
+
+## ADR-009 — Data providers
+
+- **Status:** Accepted
+- **Context:** Need trading + market data. Alpaca has no symbol search; Alpha Vantage's
+  free tier is ~25 req/day (tight). Finnhub has a friendlier free tier (~60/min) with
+  search, quotes, candles, news, and CORS.
+- **Decision:** **Alpaca (paper)** for trading; **Finnhub** for market data + symbol
+  search.
+- **Consequences:** Two integrations (Finnhub + Alpaca). Caching still worthwhile;
+  provider stays behind the service layer / BFF in case it changes.
+
+## ADR-010 — Integration architecture: backend-for-frontend (BFF)
+
+- **Status:** Accepted (direction), with an interim frontend-direct step
+- **Context:** Alpaca keys are secret and its API isn't browser-CORS-friendly; market
+  provider keys leak in the browser and free tiers need caching.
+- **Decision:** **Trading always goes through our backend.** Market data may be called
+  **frontend-direct as a local-dev spike only**; production routes everything through a
+  thin **BFF** built as **TypeScript serverless functions (Vercel/Netlify)** that hides
+  keys and caches.
+- **Consequences:** Frontend calls only `/api/*` in the target state; the service layer
+  isolates the frontend-direct → BFF transition.
+
+## ADR-011 — Watchlist persistence
+
+- **Status:** Accepted
+- **Context:** Watchlist is user data but needs no external API to start.
+- **Decision:** Persist in **`localStorage`** first (no backend); migrate to a backend +
+  DB later for multi-device/multi-user.
+- **Consequences:** Fast start; a later migration path when the BFF/DB exist.
+
+## ADR-012 — Account model: single shared paper account
+
+- **Status:** Accepted
+- **Context:** Demonstrating paper trading doesn't require multi-user infrastructure.
+- **Decision:** Use a **single shared Alpaca paper account** (no user auth) for the demo.
+- **Consequences:** No auth/user system needed now; per-user accounts + auth remain a
+  possible future extension (would likely use Alpaca Broker API).
 
 ---
 
