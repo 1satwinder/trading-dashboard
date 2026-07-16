@@ -9,6 +9,13 @@
  * PrimeVue's runtime variables are applied (avoids a flash of unstyled bg).
  */
 :root {
+  --xt-bg: #f8fafc;
+  --xt-text: #334155;
+
+  color-scheme: light;
+}
+
+:root.app-dark {
   --xt-bg: #0e1117;
   --xt-text: #e6edf3;
 
@@ -31,6 +38,9 @@ body,
 body {
   background-color: var(--xt-bg);
   color: var(--xt-text);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
   font-family:
     'Inter Variable',
     Inter,

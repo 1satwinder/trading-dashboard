@@ -50,13 +50,19 @@ component styles (no `!important` needed).
 | --- | --- | --- | --- |
 | **PrimeVue / Aura** (customized) | `--p-*` (e.g. `--p-primary-500`, `--p-surface-900`) | Component internals (buttons, tables, inputs); brand accent + surfaces | Switched by `.app-dark` (`darkModeSelector`) |
 | **Tailwind** | Tailwind theme + `tailwindcss-primeui` utilities | Layout + utilities (`bg-surface-*`, `text-primary`) | `dark:` variant (aligned to `.app-dark`) |
-| **Trading-domain** | `@theme` in `main.css` (`--color-up/down`, `--color-buy/sell/profit/loss`) | Business meaning PrimeVue lacks (see below) | Dark-first |
-| **App chrome (`--xt-*`)** | `base.css` custom props (`--xt-bg`, `--xt-text` only) | `<body>` background/text before PrimeVue's runtime vars load | Dark-first (hardcoded) |
+| **Trading-domain** | `@theme` in `main.css` (`--color-up/down`, `--color-buy/sell/profit/loss`) | Business meaning PrimeVue lacks (see below) | Shared by both themes |
+| **App chrome (`--xt-*`)** | `base.css` custom props (`--xt-bg`, `--xt-text` only) | `<body>` background/text before PrimeVue's runtime vars load | Light values on `:root`; dark overrides on `.app-dark` |
 
-> **Note:** the dark page background comes from `--xt-bg` in `base.css`, **not**
-> from Aura — this paints `<body>` before PrimeVue's `--p-*` variables are applied,
-> avoiding a flash. Aura's dark tokens style PrimeVue components. The two values
-> intentionally match (`#0E1117`).
+### Theme switching
+
+- Dark is the default. `useUiStore` owns the `light | dark` preference and persists it
+  under `xtrading-theme` in `localStorage`.
+- The top-bar sun/moon button toggles `.app-dark` on `<html>`. That one class switches
+  PrimeVue (`darkModeSelector`) and Tailwind (`dark:` via `@custom-variant`) together.
+- The small inline script in `index.html` applies a saved light preference before the
+  app renders, avoiding a dark-to-light flash.
+- `--xt-bg` / `--xt-text` paint `<body>` before PrimeVue's runtime variables load;
+  their light and dark values intentionally match the corresponding theme surfaces.
 
 ### Brand customization (not a new palette)
 

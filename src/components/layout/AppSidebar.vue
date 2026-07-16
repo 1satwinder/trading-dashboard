@@ -8,12 +8,13 @@ const ui = useUiStore()
 const linkBase =
   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
 const linkActive = 'bg-primary/15 text-primary'
-const linkInactive = 'text-surface-300 hover:bg-surface-800 hover:text-color'
+const linkInactive =
+  'text-surface-600 hover:bg-surface-100 hover:text-color dark:text-surface-300 dark:hover:bg-surface-800'
 </script>
 
 <template>
   <aside
-    class="flex flex-col border-r border-surface-800 bg-surface-950 transition-[width] duration-200"
+    class="flex flex-col border-r border-surface-200 bg-surface-0 transition-[width] duration-200 dark:border-surface-800 dark:bg-surface-950"
     :class="ui.sidebarCollapsed ? 'w-16' : 'w-56'"
   >
     <!-- Brand -->
@@ -50,7 +51,7 @@ const linkInactive = 'text-surface-300 hover:bg-surface-800 hover:text-color'
     </nav>
 
     <!-- Settings, pinned to the bottom -->
-    <div class="border-t border-surface-800 px-2 py-3">
+    <div class="border-t border-surface-200 px-2 py-3 dark:border-surface-800">
       <RouterLink
         v-slot="{ href, navigate, isActive }"
         :to="settingsItem.to"

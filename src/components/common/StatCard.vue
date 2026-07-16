@@ -9,7 +9,9 @@ defineProps<{
 </script>
 
 <template>
-  <div class="rounded-border border border-surface-800 bg-surface-900 p-4">
+  <div
+    class="rounded-border border border-surface-200 bg-surface-0 p-4 dark:border-surface-800 dark:bg-surface-900"
+  >
     <div class="flex items-start justify-between gap-2">
       <span class="text-sm text-muted-color">{{ label }}</span>
       <i v-if="icon" :class="icon" class="text-muted-color" />

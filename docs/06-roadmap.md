@@ -75,7 +75,7 @@ See `04-architecture.md` for the data-source evolution.
 
 ## Phase 9 — Polish
 
-- [ ] Light theme + theme toggle.
+- [x] Light theme + persisted theme toggle.
 - [ ] Loading/empty/error states; skeletons.
 - [ ] Accessibility pass (keyboard nav, contrast, ARIA).
 - [ ] Responsive QA on real devices.

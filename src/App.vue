@@ -12,15 +12,11 @@ const ui = useUiStore()
 
 // Collapse the sidebar to icons on tablet widths; expand on desktop.
 // The manual toggle in the top bar overrides this until the next breakpoint change.
-watch(
-  isDesktop,
-  (desktop) => ui.setSidebarCollapsed(!desktop),
-  { immediate: true },
-)
+watch(isDesktop, (desktop) => ui.setSidebarCollapsed(!desktop), { immediate: true })
 </script>
 
 <template>
-  <div class="flex min-h-screen bg-surface-950 text-color">
+  <div class="flex min-h-screen bg-surface-50 text-color dark:bg-surface-950">
     <AppSidebar class="hidden md:flex" />
 
     <div class="flex min-w-0 flex-1 flex-col">

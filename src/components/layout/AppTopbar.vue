@@ -27,7 +27,7 @@ function toggleUserMenu(event: Event) {
 
 <template>
   <header
-    class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-surface-800 bg-surface-950/95 px-4 backdrop-blur"
+    class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-surface-200 bg-surface-0/95 px-4 backdrop-blur dark:border-surface-800 dark:bg-surface-950/95"
   >
     <!-- Sidebar toggle (desktop/tablet) -->
     <Button
@@ -64,6 +64,16 @@ function toggleUserMenu(event: Event) {
         severity="secondary"
         class="sm:hidden"
         aria-label="Search"
+      />
+      <Button
+        :icon="ui.isDark ? 'pi pi-sun' : 'pi pi-moon'"
+        text
+        rounded
+        severity="secondary"
+        :aria-label="ui.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+        :aria-pressed="ui.isDark"
+        :title="ui.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+        @click="ui.toggleTheme()"
       />
       <Button icon="pi pi-bell" text rounded severity="secondary" aria-label="Notifications" />
       <button class="ml-1 rounded-full" aria-label="User menu" @click="toggleUserMenu">

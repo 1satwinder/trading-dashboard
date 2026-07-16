@@ -57,8 +57,10 @@ onMounted(() => {
     </div>
 
     <!-- Watchlist table -->
-    <div class="overflow-hidden rounded-border border border-surface-800 bg-surface-900">
-      <div class="border-b border-surface-800 px-4 py-3">
+    <div
+      class="overflow-hidden rounded-border border border-surface-200 bg-surface-0 dark:border-surface-800 dark:bg-surface-900"
+    >
+      <div class="border-b border-surface-200 px-4 py-3 dark:border-surface-800">
         <h2 class="font-semibold text-color">Watchlist</h2>
       </div>
 

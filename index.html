@@ -5,6 +5,16 @@
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>xtrading</title>
+    <script>
+      // Apply the saved preference before the app/CSS renders to avoid a theme flash.
+      try {
+        if (localStorage.getItem('xtrading-theme') === 'light') {
+          document.documentElement.classList.remove('app-dark')
+        }
+      } catch {
+        // Storage can be unavailable in restricted browser contexts; default to dark.
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>
