@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { RouterView } from 'vue-router'
+import Toast from 'primevue/toast'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
 import AppBottomNav from '@/components/layout/AppBottomNav.vue'
@@ -27,5 +28,6 @@ watch(isDesktop, (desktop) => ui.setSidebarCollapsed(!desktop), { immediate: tru
     </div>
 
     <AppBottomNav class="md:hidden" />
+    <Toast position="bottom-right" />
   </div>
 </template>

@@ -1,4 +1,4 @@
-/** A price quote for a single symbol, plus a short sparkline history. */
+/** A price quote for a single symbol, plus an optional sparkline history. */
 export interface Quote {
   symbol: string
   name: string
@@ -7,8 +7,22 @@ export interface Quote {
   change: number
   /** Percentage change vs previous close. */
   changePercent: number
-  /** Recent prices (oldest → newest) for an inline sparkline. */
-  sparkline: number[]
+  /**
+   * Recent prices (oldest → newest) for an inline sparkline.
+   * Optional: intraday candles aren't on Finnhub's free tier, so live quotes
+   * may omit this.
+   */
+  sparkline?: number[]
+}
+
+/** A symbol returned by the provider's search endpoint. */
+export interface SymbolSearchResult {
+  /** Canonical symbol used for quote lookups (e.g. `AAPL`). */
+  symbol: string
+  /** Company / instrument name (e.g. `Apple Inc`). */
+  name: string
+  /** Instrument type (e.g. `Common Stock`, `ETF`). */
+  type: string
 }
 
 /** High-level portfolio metrics shown in the dashboard stat cards. */
@@ -17,4 +31,10 @@ export interface PortfolioSummary {
   buyingPower: number
   dayChange: number
   dayChangePercent: number
+}
+
+/** A saved watchlist entry (persisted); quotes are fetched on top of these. */
+export interface WatchlistEntry {
+  symbol: string
+  name: string
 }

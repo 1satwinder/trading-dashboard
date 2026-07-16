@@ -43,10 +43,19 @@ See `04-architecture.md` for the data-source evolution.
 > dev only** (key exposed — never deployed). Watchlist persisted in `localStorage`.
 
 - [x] Choose market-data provider: **Finnhub** (ADR-009).
-- [ ] `marketData` service: real Finnhub symbol search + quotes (behind the service layer).
-- [ ] Top-bar symbol search (`AutoComplete`) → add to watchlist.
-- [ ] Watchlist persistence in `localStorage`; live quotes replace mock data.
-- [ ] Loading / empty / error states.
+- [x] `marketData` service: real Finnhub symbol search + quotes (behind the service layer).
+      _(`searchSymbols` / `fetchQuote` / `fetchQuotes` call Finnhub frontend-direct
+      via `VITE_FINNHUB_API_KEY` in `.env.local`; portfolio summary stays mock until
+      Alpaca. Intraday candles aren't on the free tier, so sparklines are approximated
+      from each quote's OHLC.)_
+- [x] Top-bar symbol search (`AutoComplete`) → add to watchlist.
+      _(Debounced `AutoComplete` in `AppTopbar` → `useSearchStore`; selecting a result
+      adds it via `useWatchlistStore.add` with a PrimeVue toast confirmation.)_
+- [x] Watchlist persistence in `localStorage`; live quotes replace mock data.
+      _(`useWatchlistStore` persists entries under `xtrading-watchlist`, seeded on first
+      visit; quotes fetched on top with add/remove/refresh.)_
+- [x] Loading / empty / error states.
+      _(DataTable loading, empty-state prompt, error `Message`, and per-symbol remove.)_
 
 ## Phase 5 — Portfolio & Chart
 

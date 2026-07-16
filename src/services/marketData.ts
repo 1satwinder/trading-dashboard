@@ -1,55 +1,140 @@
-import type { PortfolioSummary, Quote } from '@/types/market'
+import type { PortfolioSummary, Quote, SymbolSearchResult, WatchlistEntry } from '@/types/market'
 
 /**
- * Mock market-data service.
+ * Market-data service — the single data-access boundary (docs/04-architecture.md).
  *
- * This is the single data-access boundary (see docs/04-architecture.md). Views
- * go through Pinia stores, which call these functions. Swapping to a real API
- * later means changing only this file — nothing in the stores or components.
+ * Stage 2 of the data strategy: symbol search + quotes come **frontend-direct**
+ * from Finnhub (local-dev spike only — the key is exposed, so this is never
+ * deployed). This whole file is the seam; Phase 7 swaps it for the BFF (`/api/*`)
+ * without touching stores or components. Portfolio metrics stay mock until Alpaca
+ * (Phase 8).
  */
 
-const WATCHLIST: Quote[] = [
-  {
-    symbol: 'AAPL',
-    name: 'Apple Inc.',
-    price: 189.42,
-    change: 2.24,
-    changePercent: 1.2,
-    sparkline: [185, 184.5, 186, 185.8, 187, 186.5, 188, 187.6, 188.9, 189.42],
-  },
-  {
-    symbol: 'TSLA',
-    name: 'Tesla, Inc.',
-    price: 242.1,
-    change: -1.95,
-    changePercent: -0.8,
-    sparkline: [246, 245, 245.5, 244, 243.2, 243.8, 242.9, 242.5, 242.1],
-  },
-  {
-    symbol: 'NVDA',
-    name: 'NVIDIA Corporation',
-    price: 880.15,
-    change: 28.98,
-    changePercent: 3.4,
-    sparkline: [851, 855, 853, 860, 858, 866, 870, 872, 878, 880.15],
-  },
-  {
-    symbol: 'MSFT',
-    name: 'Microsoft Corporation',
-    price: 415.2,
-    change: 2.06,
-    changePercent: 0.5,
-    sparkline: [413, 413.5, 412.8, 414, 413.6, 414.5, 415, 415.2],
-  },
-  {
-    symbol: 'AMZN',
-    name: 'Amazon.com, Inc.',
-    price: 178.3,
-    change: -1.98,
-    changePercent: -1.1,
-    sparkline: [180.5, 180, 179.6, 179, 179.3, 178.8, 178.5, 178.3],
-  },
-]
+const FINNHUB_BASE = 'https://finnhub.io/api/v1'
+const API_KEY = import.meta.env.VITE_FINNHUB_API_KEY
+
+class MarketDataError extends Error {}
+
+function requireKey(): string {
+  if (!API_KEY) {
+    throw new MarketDataError(
+      'Missing Finnhub API key. Add VITE_FINNHUB_API_KEY to .env.local (see .env.example).',
+    )
+  }
+  return API_KEY
+}
+
+async function finnhub<T>(path: string, params: Record<string, string>): Promise<T> {
+  const url = new URL(`${FINNHUB_BASE}${path}`)
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+  url.searchParams.set('token', requireKey())
+
+  let res: Response
+  try {
+    res = await fetch(url)
+  } catch {
+    throw new MarketDataError('Network error contacting the market-data provider.')
+  }
+
+  if (res.status === 429) {
+    throw new MarketDataError('Rate limit reached. Please wait a moment and try again.')
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new MarketDataError('Market-data request was rejected. Check your Finnhub API key.')
+  }
+  if (!res.ok) {
+    throw new MarketDataError(`Market-data request failed (${res.status}).`)
+  }
+  return res.json() as Promise<T>
+}
+
+// ---- Symbol search ---------------------------------------------------------
+
+interface FinnhubSearchResult {
+  description: string
+  displaySymbol: string
+  symbol: string
+  type: string
+}
+
+interface FinnhubSearchResponse {
+  count: number
+  result: FinnhubSearchResult[]
+}
+
+/**
+ * Search symbols by name or ticker. Filters to plain US listings (no `.`/`:`
+ * suffixes) with a description, which keeps the dropdown clean and lookup-able.
+ */
+export async function searchSymbols(query: string): Promise<SymbolSearchResult[]> {
+  const q = query.trim()
+  if (!q) return []
+
+  const data = await finnhub<FinnhubSearchResponse>('/search', { q })
+  return (data.result ?? [])
+    .filter((r) => r.description && !r.symbol.includes('.') && !r.symbol.includes(':'))
+    .slice(0, 12)
+    .map((r) => ({
+      symbol: r.symbol,
+      name: toTitleCase(r.description),
+      type: r.type || 'Stock',
+    }))
+}
+
+// ---- Quotes ----------------------------------------------------------------
+
+interface FinnhubQuote {
+  c: number // current price
+  d: number | null // change
+  dp: number | null // percent change
+  h: number // high
+  l: number // low
+  o: number // open
+  pc: number // previous close
+  t: number // timestamp
+}
+
+/** Fetch a live quote for one symbol, keeping the provided display name. */
+export async function fetchQuote(entry: WatchlistEntry): Promise<Quote> {
+  const q = await finnhub<FinnhubQuote>('/quote', { symbol: entry.symbol })
+  return {
+    symbol: entry.symbol,
+    name: entry.name,
+    price: q.c ?? 0,
+    change: q.d ?? 0,
+    changePercent: q.dp ?? 0,
+    // Finnhub's free tier has no intraday candles; approximate a tiny trend
+    // line from the day's open → high/low → last so the sparkline isn't blank.
+    sparkline: buildSparkline(q),
+  }
+}
+
+/** Fetch quotes for many symbols; a single failure doesn't sink the batch. */
+export async function fetchQuotes(entries: WatchlistEntry[]): Promise<Quote[]> {
+  const results = await Promise.allSettled(entries.map((e) => fetchQuote(e)))
+  return results
+    .filter((r): r is PromiseFulfilledResult<Quote> => r.status === 'fulfilled')
+    .map((r) => r.value)
+}
+
+/**
+ * Rough intraday shape from a single quote (open, low, high, previous close,
+ * current). Not a true time series — just enough to give the row a trend cue
+ * until real candles arrive via the BFF.
+ */
+function buildSparkline(q: FinnhubQuote): number[] {
+  const pts = [q.pc, q.o, q.l, q.h, q.c].filter((n) => typeof n === 'number' && n > 0)
+  return pts.length >= 2 ? pts : []
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\b(Inc|Corp|Ltd|Plc|Co|Etf|Reit|Sa|Ag|Nv)\b/gi, (m) => m.toUpperCase())
+}
+
+// ---- Portfolio (mock until Alpaca, Phase 8) --------------------------------
 
 const PORTFOLIO_SUMMARY: PortfolioSummary = {
   totalValue: 48250.3,
@@ -58,15 +143,8 @@ const PORTFOLIO_SUMMARY: PortfolioSummary = {
   dayChangePercent: 2.4,
 }
 
-/** Simulate network latency so loading states are exercised. */
-function withLatency<T>(data: T, ms = 350): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(structuredClone(data)), ms))
-}
-
-export function fetchWatchlist(): Promise<Quote[]> {
-  return withLatency(WATCHLIST)
-}
-
 export function fetchPortfolioSummary(): Promise<PortfolioSummary> {
-  return withLatency(PORTFOLIO_SUMMARY)
+  return new Promise((resolve) =>
+    setTimeout(() => resolve(structuredClone(PORTFOLIO_SUMMARY)), 300),
+  )
 }

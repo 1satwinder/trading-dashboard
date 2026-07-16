@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { ref, useTemplateRef } from 'vue'
 import Button from 'primevue/button'
-import IconField from 'primevue/iconfield'
-import InputIcon from 'primevue/inputicon'
-import InputText from 'primevue/inputtext'
 import Avatar from 'primevue/avatar'
 import Menu from 'primevue/menu'
 import type { MenuMethods } from 'primevue/menu'
+import SymbolSearch from '@/components/layout/SymbolSearch.vue'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
-const searchQuery = ref('')
+
+/** Full-screen search overlay for mobile (`<sm`), where the inline bar is hidden. */
+const mobileSearchOpen = ref(false)
 
 const userMenu = useTemplateRef<MenuMethods>('userMenu')
 const userMenuItems = [
@@ -43,16 +43,9 @@ function toggleUserMenu(event: Event) {
     <!-- Brand (mobile only; on desktop the brand lives in the sidebar) -->
     <span class="text-lg font-bold text-color md:hidden">xtrading</span>
 
-    <!-- Search -->
+    <!-- Symbol search (inline, tablet/desktop) -->
     <div class="mx-auto hidden w-full max-w-md sm:block">
-      <IconField>
-        <InputIcon class="pi pi-search" />
-        <InputText
-          v-model="searchQuery"
-          placeholder="Search stocks, ETFs..."
-          class="w-full"
-        />
-      </IconField>
+      <SymbolSearch />
     </div>
 
     <!-- Right actions -->
@@ -64,6 +57,7 @@ function toggleUserMenu(event: Event) {
         severity="secondary"
         class="sm:hidden"
         aria-label="Search"
+        @click="mobileSearchOpen = true"
       />
       <Button
         :icon="ui.isDark ? 'pi pi-sun' : 'pi pi-moon'"
@@ -80,6 +74,24 @@ function toggleUserMenu(event: Event) {
         <Avatar icon="pi pi-user" shape="circle" />
       </button>
       <Menu ref="userMenu" :model="userMenuItems" popup />
+    </div>
+
+    <!-- Mobile search overlay (covers the bar; closes on select or back) -->
+    <div
+      v-if="mobileSearchOpen"
+      class="absolute inset-0 z-40 flex items-center gap-2 bg-surface-0 px-4 dark:bg-surface-950 sm:hidden"
+    >
+      <Button
+        icon="pi pi-arrow-left"
+        text
+        rounded
+        severity="secondary"
+        aria-label="Close search"
+        @click="mobileSearchOpen = false"
+      />
+      <div class="min-w-0 flex-1">
+        <SymbolSearch autofocus @select="mobileSearchOpen = false" />
+      </div>
     </div>
   </header>
 </template>

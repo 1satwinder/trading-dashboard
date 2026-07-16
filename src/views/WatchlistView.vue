@@ -3,6 +3,8 @@ import { onMounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Avatar from 'primevue/avatar'
+import Button from 'primevue/button'
+import Message from 'primevue/message'
 import StatCard from '@/components/common/StatCard.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import Sparkline from '@/components/common/Sparkline.vue'
@@ -60,11 +62,44 @@ onMounted(() => {
     <div
       class="overflow-hidden rounded-border border border-surface-200 bg-surface-0 dark:border-surface-800 dark:bg-surface-900"
     >
-      <div class="border-b border-surface-200 px-4 py-3 dark:border-surface-800">
+      <div class="flex items-center justify-between gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-800">
         <h2 class="font-semibold text-color">Watchlist</h2>
+        <Button
+          icon="pi pi-refresh"
+          text
+          rounded
+          size="small"
+          severity="secondary"
+          :loading="watchlist.loading"
+          aria-label="Refresh quotes"
+          title="Refresh quotes"
+          @click="watchlist.load()"
+        />
+      </div>
+
+      <Message
+        v-if="watchlist.error"
+        severity="error"
+        :closable="false"
+        class="m-4"
+      >
+        {{ watchlist.error }}
+      </Message>
+
+      <!-- Empty state -->
+      <div
+        v-else-if="watchlist.isEmpty && !watchlist.loading"
+        class="flex flex-col items-center gap-2 px-6 py-16 text-center"
+      >
+        <i class="pi pi-search text-3xl text-muted-color" />
+        <p class="font-medium text-color">Your watchlist is empty</p>
+        <p class="max-w-xs text-sm text-muted-color">
+          Use the search bar above to find a stock or ETF and add it to your watchlist.
+        </p>
       </div>
 
       <DataTable
+        v-else
         :value="watchlist.items"
         :loading="watchlist.loading"
         data-key="symbol"
@@ -100,7 +135,23 @@ onMounted(() => {
           body-class="hidden sm:table-cell"
         >
           <template #body="{ data }">
-            <Sparkline :data="data.sparkline" />
+            <Sparkline v-if="data.sparkline?.length" :data="data.sparkline" />
+            <span v-else class="text-xs text-muted-color">—</span>
+          </template>
+        </Column>
+
+        <Column header="" body-class="w-12">
+          <template #body="{ data }">
+            <Button
+              icon="pi pi-times"
+              text
+              rounded
+              size="small"
+              severity="secondary"
+              :aria-label="`Remove ${data.symbol}`"
+              :title="`Remove ${data.symbol}`"
+              @click="watchlist.remove(data.symbol)"
+            />
           </template>
         </Column>
       </DataTable>
