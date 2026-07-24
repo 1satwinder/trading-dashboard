@@ -8,11 +8,25 @@ export interface Quote {
   /** Percentage change vs previous close. */
   changePercent: number
   /**
+   * Previous session's close. Kept so streaming trades (which carry only a
+   * last price) can recompute `change` / `changePercent` on the client.
+   */
+  previousClose?: number
+  /**
    * Recent prices (oldest → newest) for an inline sparkline.
    * Optional: intraday candles aren't on Finnhub's free tier, so live quotes
    * may omit this.
    */
   sparkline?: number[]
+}
+
+/** A single real-time trade tick from the streaming feed. */
+export interface Trade {
+  symbol: string
+  /** Last traded price. */
+  price: number
+  /** Epoch milliseconds of the trade. */
+  timestamp: number
 }
 
 /** A symbol returned by the provider's search endpoint. */

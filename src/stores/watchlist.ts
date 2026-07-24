@@ -1,7 +1,15 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { Quote, SymbolSearchResult, WatchlistEntry } from '@/types/market'
+import type { Quote, SymbolSearchResult, Trade, WatchlistEntry } from '@/types/market'
 import { fetchQuotes } from '@/services/marketData'
+import { marketStream, type StreamStatus } from '@/services/marketStream'
+
+/**
+ * How often buffered trades are flushed into `items`. Finnhub can push many
+ * ticks per second per symbol; coalescing to the latest price on an interval
+ * keeps reactivity (and re-renders) cheap without a visible lag.
+ */
+const FLUSH_INTERVAL_MS = 400
 
 const STORAGE_KEY = 'xtrading-watchlist'
 
@@ -43,11 +51,79 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  /** Live connection status of the streaming feed. */
+  const streamStatus = ref<StreamStatus>('idle')
+  const isLive = computed(() => streamStatus.value === 'open')
+
   const isEmpty = computed(() => entries.value.length === 0)
   const symbols = computed(() => new Set(entries.value.map((e) => e.symbol)))
 
   function has(symbol: string): boolean {
     return symbols.value.has(symbol)
+  }
+
+  // ---- Streaming ------------------------------------------------------------
+
+  /** Latest un-applied trade per symbol, flushed on an interval. */
+  const tradeBuffer = new Map<string, Trade>()
+  let flushTimer: ReturnType<typeof setInterval> | null = null
+  let stopTrades: (() => void) | null = null
+  let stopStatus: (() => void) | null = null
+
+  function bufferTrades(trades: Trade[]) {
+    for (const t of trades) {
+      if (symbols.value.has(t.symbol)) tradeBuffer.set(t.symbol, t)
+    }
+  }
+
+  /** Apply buffered prices to `items`, recomputing change vs. previous close. */
+  function flushTrades() {
+    if (tradeBuffer.size === 0) return
+    items.value = items.value.map((q) => {
+      const trade = tradeBuffer.get(q.symbol)
+      if (!trade) return q
+      // Fall back to deriving the prior close if a quote didn't carry one.
+      const previousClose = q.previousClose ?? q.price - q.change
+      const change = previousClose ? trade.price - previousClose : 0
+      const changePercent = previousClose ? (change / previousClose) * 100 : 0
+      return { ...q, price: trade.price, change, changePercent, previousClose }
+    })
+    tradeBuffer.clear()
+  }
+
+  /** Push the current watched symbols to the stream (no-op if not connected). */
+  function syncStreamSymbols() {
+    marketStream.setSymbols(entries.value.map((e) => e.symbol))
+  }
+
+  /** Open the live feed for the current watchlist. Safe to call repeatedly. */
+  function connect() {
+    if (stopStatus === null) {
+      stopStatus = marketStream.onStatus((s) => {
+        streamStatus.value = s
+      })
+    }
+    if (stopTrades === null) {
+      stopTrades = marketStream.onTrades(bufferTrades)
+    }
+    if (flushTimer === null) {
+      flushTimer = setInterval(flushTrades, FLUSH_INTERVAL_MS)
+    }
+    syncStreamSymbols()
+  }
+
+  /** Close the live feed and detach listeners. */
+  function disconnect() {
+    stopTrades?.()
+    stopStatus?.()
+    stopTrades = null
+    stopStatus = null
+    if (flushTimer !== null) {
+      clearInterval(flushTimer)
+      flushTimer = null
+    }
+    tradeBuffer.clear()
+    marketStream.close()
   }
 
   /** Fetch quotes for the current entries. */
@@ -73,6 +149,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     const entry: WatchlistEntry = { symbol: result.symbol, name: result.name }
     entries.value = [...entries.value, entry]
     saveEntries(entries.value)
+    syncStreamSymbols()
     try {
       const [quote] = await fetchQuotes([entry])
       if (quote) items.value = [...items.value, quote]
@@ -86,8 +163,24 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   function remove(symbol: string) {
     entries.value = entries.value.filter((e) => e.symbol !== symbol)
     items.value = items.value.filter((q) => q.symbol !== symbol)
+    tradeBuffer.delete(symbol)
     saveEntries(entries.value)
+    syncStreamSymbols()
   }
 
-  return { entries, items, loading, error, isEmpty, has, load, add, remove }
+  return {
+    entries,
+    items,
+    loading,
+    error,
+    streamStatus,
+    isLive,
+    isEmpty,
+    has,
+    load,
+    add,
+    remove,
+    connect,
+    disconnect,
+  }
 })

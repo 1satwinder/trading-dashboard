@@ -104,6 +104,22 @@ decision is made. Keep them short.
 - **Consequences:** No auth/user system needed now; per-user accounts + auth remain a
   possible future extension (would likely use Alpaca Broker API).
 
+## ADR-013 — Real-time quotes via Finnhub WebSocket
+
+- **Status:** Accepted (interim frontend-direct, like ADR-010)
+- **Context:** The watchlist showed static REST quotes. Live prices need a push feed;
+  polling `/quote` per symbol would burn the free-tier quota. Finnhub offers a trade
+  WebSocket (`wss://ws.finnhub.io`).
+- **Decision:** Stream trades over a **single shared WebSocket** behind a new
+  `marketStream` service (mirroring `marketData`). The store **buffers ticks and flushes
+  the latest price per symbol every ~400ms**, recomputing change % from `previousClose`.
+  The socket reconnects with exponential backoff and reconciles subscriptions as the
+  watchlist changes. Called **frontend-direct in local dev only**; it moves behind the
+  BFF (proxied WS/SSE) in Phase 7, same as REST.
+- **Consequences:** Smooth live updates without hammering the REST quota; the buffer keeps
+  re-renders cheap. Consumers depend only on a provider-agnostic `Trade` type, so the
+  BFF transition won't touch stores or components. Ticks only arrive during market hours.
+
 ---
 
 ### Open decisions (not yet resolved)

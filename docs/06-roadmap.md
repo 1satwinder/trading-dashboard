@@ -56,6 +56,13 @@ See `04-architecture.md` for the data-source evolution.
       visit; quotes fetched on top with add/remove/refresh.)_
 - [x] Loading / empty / error states.
       _(DataTable loading, empty-state prompt, error `Message`, and per-symbol remove.)_
+- [x] Streaming watchlist via Finnhub WebSocket.
+      _(`marketStream` service wraps one shared `wss://ws.finnhub.io` socket — reconciles
+      subscribe/unsubscribe against the watchlist and reconnects with backoff. The store
+      buffers trades and flushes the latest price per symbol every 400ms, recomputing
+      change % from the previous close; `LivePrice` flashes green/red on each tick and the
+      header shows a Live/Connecting/Offline status pill. Sits behind the same service seam,
+      so it moves to the BFF in Phase 7.)_
 
 ## Phase 5 — Portfolio & Chart
 

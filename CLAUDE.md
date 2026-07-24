@@ -47,10 +47,10 @@ show stale errors right after installing a package).
 
 ```
 src/
-├── components/   layout/ (shell), common/ (PriceTag, Sparkline, StatCard), feature dirs
+├── components/   layout/ (shell, SymbolSearch), common/ (PriceTag, Sparkline, StatCard, LivePrice), feature dirs
 ├── views/        route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
-├── stores/       Pinia stores (useUiStore, useWatchlistStore, usePortfolioStore, …)
-├── services/     data access layer (mock JSON now, real API later)
+├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, usePortfolioStore, …)
+├── services/     data access layer: marketData.ts (Finnhub REST: search + quotes), marketStream.ts (Finnhub WebSocket: live trades)
 ├── composables/  useBreakpoint, formatters, …
 ├── theme/        preset.ts — customized PrimeVue Aura preset
 ├── types/        shared TS types
@@ -63,6 +63,12 @@ Keep all provider/backend details behind `services/` so the data source can evol
 without touching views. External providers: **Alpaca** (paper trading, server-side only)
 + **Finnhub** (symbol search/quotes/candles/news). BFF = TypeScript serverless
 (Vercel/Netlify); single shared paper account, no auth. See ADR-009/010/012.
+
+Real-time: the watchlist streams live prices over **one shared Finnhub WebSocket**
+(`marketStream`). `useWatchlistStore` owns the `connect()`/`disconnect()` lifecycle,
+buffers ticks and flushes the latest price per symbol every ~400ms (recomputing
+change % from `previousClose`); `marketStream` reconciles subscriptions and reconnects
+with backoff. Frontend-direct in dev, moves behind the BFF later. See ADR-013.
 
 `@/` is aliased to `src/`.
 
@@ -123,8 +129,10 @@ UI mockups (reference designs) are in [`UI mockups/`](./UI%20mockups/).
 
 ## Current status
 
-Phases 1–3 complete: project setup, responsive layout shell, and the Watchlist page
-(core components + `DataTable`) on **mock data**. **Next: Phase 4 — symbol search + live
-watchlist** using a real market-data provider (frontend-direct spike), with the
-watchlist persisted in `localStorage`. A backend-for-frontend and Alpaca paper trading
-come in Phases 7–8. See `docs/06-roadmap.md` for authoritative status.
+Phases 1–4 complete: project setup, responsive layout shell, the Watchlist page, and
+**real market data** — Finnhub symbol search (top-bar `AutoComplete`) + a live watchlist
+persisted in `localStorage`, with **real-time prices streamed over Finnhub's WebSocket**
+(`marketStream`). A persisted light/dark theme toggle (Phase 9) is also done. Portfolio
+metrics stay mock until Alpaca. **Next: Phase 5 — Portfolio & Chart.** A
+backend-for-frontend and Alpaca paper trading come in Phases 7–8. See
+`docs/06-roadmap.md` for authoritative status.

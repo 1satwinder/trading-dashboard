@@ -52,7 +52,8 @@ The app integrates two kinds of external service, plus (eventually) our own back
 > too tight) and Twelve Data.
 
 - **Finnhub** for symbol search (`/search`), quotes, candles, and news; ~60 req/min free
-  tier, browser CORS, and a WebSocket for real-time updates later.
+  tier, browser CORS, and a trade **WebSocket** used for the live watchlist (see
+  `marketStream` in `04-architecture.md`).
 - Kept behind the service layer / BFF so it can be swapped if needed.
 
 ### Backend-for-frontend (BFF) — planned

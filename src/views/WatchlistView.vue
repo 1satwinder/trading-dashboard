@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Avatar from 'primevue/avatar'
@@ -8,6 +8,7 @@ import Message from 'primevue/message'
 import StatCard from '@/components/common/StatCard.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import Sparkline from '@/components/common/Sparkline.vue'
+import LivePrice from '@/components/common/LivePrice.vue'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { usePortfolioStore } from '@/stores/portfolio'
 import { formatCurrency } from '@/utils/format'
@@ -15,9 +16,30 @@ import { formatCurrency } from '@/utils/format'
 const watchlist = useWatchlistStore()
 const portfolio = usePortfolioStore()
 
-onMounted(() => {
-  watchlist.load()
+/** Live-status pill copy + styling, keyed off the stream connection state. */
+const liveStatus = computed(() => {
+  switch (watchlist.streamStatus) {
+    case 'open':
+      return { label: 'Live', dot: 'bg-up', pulse: true }
+    case 'connecting':
+    case 'reconnecting':
+      return { label: 'Connecting…', dot: 'bg-amber-500', pulse: true }
+    case 'closed':
+      return { label: 'Offline', dot: 'bg-down', pulse: false }
+    default:
+      return { label: 'Idle', dot: 'bg-surface-400', pulse: false }
+  }
+})
+
+onMounted(async () => {
   portfolio.load()
+  // Fetch baseline quotes first so streamed ticks update rows already on screen.
+  await watchlist.load()
+  watchlist.connect()
+})
+
+onUnmounted(() => {
+  watchlist.disconnect()
 })
 </script>
 
@@ -63,7 +85,23 @@ onMounted(() => {
       class="overflow-hidden rounded-border border border-surface-200 bg-surface-0 dark:border-surface-800 dark:bg-surface-900"
     >
       <div class="flex items-center justify-between gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-800">
-        <h2 class="font-semibold text-color">Watchlist</h2>
+        <div class="flex items-center gap-3">
+          <h2 class="font-semibold text-color">Watchlist</h2>
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full border border-surface-200 px-2 py-0.5 text-xs font-medium text-muted-color dark:border-surface-700"
+            :title="`Streaming: ${watchlist.streamStatus}`"
+          >
+            <span class="relative flex h-2 w-2">
+              <span
+                v-if="liveStatus.pulse"
+                class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                :class="liveStatus.dot"
+              />
+              <span class="relative inline-flex h-2 w-2 rounded-full" :class="liveStatus.dot" />
+            </span>
+            {{ liveStatus.label }}
+          </span>
+        </div>
         <Button
           icon="pi pi-refresh"
           text
@@ -119,7 +157,7 @@ onMounted(() => {
 
         <Column field="price" header="Last Price" sortable>
           <template #body="{ data }">
-            <span class="tabular-nums text-color">{{ formatCurrency(data.price) }}</span>
+            <LivePrice :price="data.price" />
           </template>
         </Column>
 

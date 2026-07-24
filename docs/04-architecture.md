@@ -18,7 +18,7 @@
 src/
 ├── assets/              # static assets, global styles
 ├── components/
-│   ├── layout/          # AppSidebar, AppBottomNav, AppTopbar, SearchBar, UserMenu
+│   ├── layout/          # AppSidebar, AppBottomNav, AppTopbar, SymbolSearch, UserMenu
 │   ├── common/          # PriceTag, Sparkline, StatCard, DataTable wrappers
 │   ├── watchlist/       # SymbolRow, SymbolCard
 │   ├── portfolio/       # AllocationDonut, HoldingsTable
@@ -28,7 +28,8 @@ src/
 ├── views/               # route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
 ├── stores/              # Pinia stores
 ├── services/            # data-access boundary
-│   ├── marketData.ts    # quotes/search/candles/news (mock → provider → BFF)
+│   ├── marketData.ts    # REST: symbol search + quotes (mock → provider → BFF)
+│   ├── marketStream.ts  # WebSocket: real-time trade stream (frontend-direct → BFF)
 │   └── trading.ts       # Alpaca via BFF (orders, positions, account) — later
 ├── composables/         # useBreakpoint, useFormatCurrency, etc.
 ├── types/               # shared TypeScript types (Symbol, Quote, Holding, Order, ...)
@@ -62,8 +63,8 @@ server/                  # backend-for-frontend (BFF) — planned
 | Store | Responsibility |
 | --- | --- |
 | `useUiStore` | Theme, sidebar collapsed/expanded, active breakpoint |
-| `useWatchlistStore` | Watchlist symbols + quotes (persisted; interim `localStorage`) |
-| `useSearchStore` | Symbol search query + results |
+| `useWatchlistStore` | Watchlist symbols + quotes (persisted; interim `localStorage`); owns the live-stream lifecycle and applies buffered trades |
+| `useSearchStore` | Symbol search query + results (guards against out-of-order responses) |
 | `usePortfolioStore` | Holdings, cash, derived P/L (mock → Alpaca positions) |
 | `useMarketStore` | Indices, movers, sector data |
 | `useTradingStore` | Order tickets, placement, and order status (via BFF) — later |
@@ -88,6 +89,50 @@ View → Pinia store → Service layer → (mock JSON | frontend-direct | BFF)
 
 The service layer is the seam that lets the data source evolve in three stages
 **without touching views or components**.
+
+## Symbol search
+
+Adding a symbol to the watchlist starts with a type-ahead search in the top bar:
+
+```
+SymbolSearch (AutoComplete) → useSearchStore.search() → marketData.searchSymbols() → Finnhub /search
+                            ↳ select result → useWatchlistStore.add()
+```
+
+- **`SymbolSearch.vue`** (`components/layout/`) wraps PrimeVue `AutoComplete`. It
+  debounces input via the `delay` prop, renders each result (symbol, name, type) with
+  an "Added" tag when it's already followed, and on select delegates to
+  `useWatchlistStore.add()` and shows a toast.
+- **`useSearchStore`** runs the request and holds `query` / `results` / `loading` /
+  `error`. It stamps each request with a sequence number so **out-of-order responses
+  from earlier keystrokes are ignored** (only the latest query wins).
+- **`marketData.searchSymbols()`** calls Finnhub `/search` and filters to clean US
+  listings so the dropdown stays lookup-able.
+
+## Real-time streaming (WebSocket)
+
+Live prices come from Finnhub's trade stream, kept behind the same service seam as REST:
+
+```
+marketStream (one shared wss://ws.finnhub.io socket)
+   → trade frames → useWatchlistStore buffer → flush every 400ms → items[] → LivePrice/PriceTag
+```
+
+- **`marketStream.ts`** owns a **single app-wide `WebSocket`**. It reconciles the
+  *desired* set of symbols against what's actually subscribed (sending `subscribe` /
+  `unsubscribe` frames as the watchlist changes), and **reconnects with exponential
+  backoff** (1s → 30s), re-subscribing on reconnect. Consumers only see the
+  provider-agnostic `Trade` type plus `setSymbols()` / `onTrades()` / `onStatus()` —
+  so Phase 7 can move this behind the BFF (proxied WS or SSE) without touching stores.
+- **`useWatchlistStore`** calls `connect()` / `disconnect()` (from the view's mount /
+  unmount) and **buffers incoming trades**, flushing the latest price per symbol on a
+  400ms interval to avoid excessive re-renders (Finnhub can push many ticks/sec).
+  On each flush it recomputes `change` / `changePercent` from the stored
+  `previousClose`. `streamStatus` drives the header's Live/Connecting/Offline pill.
+- **`LivePrice.vue`** flashes green/red for a moment on each tick.
+
+> Trades only flow during market hours; outside them the socket still connects ("Live")
+> but prices stay static until the next session.
 
 ## External integration: why a backend-for-frontend
 

@@ -103,6 +103,7 @@ export async function fetchQuote(entry: WatchlistEntry): Promise<Quote> {
     price: q.c ?? 0,
     change: q.d ?? 0,
     changePercent: q.dp ?? 0,
+    previousClose: q.pc ?? undefined,
     // Finnhub's free tier has no intraday candles; approximate a tiny trend
     // line from the day's open → high/low → last so the sparkline isn't blank.
     sparkline: buildSparkline(q),
