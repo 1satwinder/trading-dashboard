@@ -52,3 +52,31 @@ export interface WatchlistEntry {
   symbol: string
   name: string
 }
+
+/**
+ * A single OHLCV candle. `time` is epoch **seconds** (Lightweight Charts'
+ * `UTCTimestamp`), oldest → newest when in a series.
+ */
+export interface Candle {
+  time: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+/** Candle resolution (bar width) requested from the data source. */
+export type ChartResolution = '5m' | '30m' | '1d' | '1w'
+
+/** Range-tab id shown above the chart; each maps to a resolution + bar count. */
+export type ChartTimeframeId = '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'
+
+/** A chart range preset: a labelled tab bundling its resolution and span. */
+export interface ChartTimeframe {
+  id: ChartTimeframeId
+  label: string
+  resolution: ChartResolution
+  /** Number of candles to render for this range. */
+  bars: number
+}

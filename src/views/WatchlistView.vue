@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Avatar from 'primevue/avatar'
@@ -13,8 +14,13 @@ import { useWatchlistStore } from '@/stores/watchlist'
 import { usePortfolioStore } from '@/stores/portfolio'
 import { formatCurrency } from '@/utils/format'
 
+const router = useRouter()
 const watchlist = useWatchlistStore()
 const portfolio = usePortfolioStore()
+
+function openChart(symbol: string) {
+  router.push({ name: 'chart', params: { symbol } })
+}
 
 /** Live-status pill copy + styling, keyed off the stream connection state. */
 const liveStatus = computed(() => {
@@ -145,13 +151,20 @@ onUnmounted(() => {
       >
         <Column field="symbol" header="Symbol" sortable>
           <template #body="{ data }">
-            <div class="flex items-center gap-3">
+            <button
+              type="button"
+              class="group flex items-center gap-3 text-left"
+              :title="`Open ${data.symbol} chart`"
+              @click="openChart(data.symbol)"
+            >
               <Avatar :label="data.symbol.charAt(0)" shape="circle" />
               <div>
-                <div class="font-semibold text-color">{{ data.symbol }}</div>
+                <div class="font-semibold text-color group-hover:text-primary">
+                  {{ data.symbol }}
+                </div>
                 <div class="text-xs text-muted-color">{{ data.name }}</div>
               </div>
-            </div>
+            </button>
           </template>
         </Column>
 

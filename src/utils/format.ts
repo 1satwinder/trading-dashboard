@@ -27,3 +27,13 @@ export function formatPercent(value: number, { signed = false }: SignOptions = {
 export function formatNumber(value: number): string {
   return numberFmt.format(value)
 }
+
+const compactFmt = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+/** Compact number for large counts, e.g. `42.1M` (used for volume). */
+export function formatCompact(value: number): string {
+  return compactFmt.format(value)
+}

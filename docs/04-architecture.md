@@ -123,7 +123,7 @@ marketStream (one shared wss://ws.finnhub.io socket)
   `unsubscribe` frames as the watchlist changes), and **reconnects with exponential
   backoff** (1s → 30s), re-subscribing on reconnect. Consumers only see the
   provider-agnostic `Trade` type plus `setSymbols()` / `onTrades()` / `onStatus()` —
-  so Phase 7 can move this behind the BFF (proxied WS or SSE) without touching stores.
+  so Phase 6 can move this behind the BFF (proxied WS or SSE) without touching stores.
 - **`useWatchlistStore`** calls `connect()` / `disconnect()` (from the view's mount /
   unmount) and **buffers incoming trades**, flushing the latest price per symbol on a
   400ms interval to avoid excessive re-renders (Finnhub can push many ticks/sec).

@@ -15,7 +15,7 @@ const router = createRouter({
       component: () => import('@/views/PortfolioView.vue'),
     },
     {
-      path: '/chart',
+      path: '/chart/:symbol?',
       name: 'chart',
       component: () => import('@/views/ChartView.vue'),
     },

@@ -23,7 +23,7 @@ keys must also move server-side before deploying. See `docs/04-architecture.md`.
 - **PrimeVue 4** (Aura preset, styled mode) for components
 - **Tailwind CSS v4** (`@tailwindcss/vite`) for layout/utilities
 - **tailwindcss-primeui** — the bridge exposing PrimeVue tokens as Tailwind utilities
-- **lightweight-charts** (planned) for price charts; `lucide-vue-next` / `primeicons` for icons
+- **lightweight-charts** v5 for price charts (candlestick + volume); `lucide-vue-next` / `primeicons` for icons
 - **Inter** font via `@fontsource-variable/inter`
 
 Node: `^22.18.0 || >=24.12.0`.
@@ -49,7 +49,7 @@ show stale errors right after installing a package).
 src/
 ├── components/   layout/ (shell, SymbolSearch), common/ (PriceTag, Sparkline, StatCard, LivePrice), feature dirs
 ├── views/        route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
-├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, usePortfolioStore, …)
+├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, useChartStore, usePortfolioStore, …)
 ├── services/     data access layer: marketData.ts (Finnhub REST: search + quotes), marketStream.ts (Finnhub WebSocket: live trades)
 ├── composables/  useBreakpoint, formatters, …
 ├── theme/        preset.ts — customized PrimeVue Aura preset
@@ -132,7 +132,14 @@ UI mockups (reference designs) are in [`UI mockups/`](./UI%20mockups/).
 Phases 1–4 complete: project setup, responsive layout shell, the Watchlist page, and
 **real market data** — Finnhub symbol search (top-bar `AutoComplete`) + a live watchlist
 persisted in `localStorage`, with **real-time prices streamed over Finnhub's WebSocket**
-(`marketStream`). A persisted light/dark theme toggle (Phase 9) is also done. Portfolio
-metrics stay mock until Alpaca. **Next: Phase 5 — Portfolio & Chart.** A
-backend-for-frontend and Alpaca paper trading come in Phases 7–8. See
-`docs/06-roadmap.md` for authoritative status.
+(`marketStream`). A persisted light/dark theme toggle (Polish, Phase 10) is also done.
+
+Phase 5 (Chart) core is done — `lightweight-charts` v5 candlestick + volume with 1D–5Y
+timeframe tabs (`ChartView` + `PriceChart` + `useChartStore`), on **mock candles**
+(`fetchCandles`; Finnhub candles are premium, real bars come via the BFF in Phase 6 — see
+ADR-014).
+
+**Next: Phase 6 — the backend-for-frontend (BFF), pulled forward** so the existing features
+(search, watchlist + stream, chart) run on real data with keys hidden, then verified
+end-to-end. After that: Portfolio (Phase 7), Alpaca paper trading (Phase 8), Markets & News
+(Phase 9). See `docs/06-roadmap.md` for authoritative status.

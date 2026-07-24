@@ -7,7 +7,7 @@ import type { Trade } from '@/types/market'
  * Stage 2, like `marketData.ts`: connects **frontend-direct** to Finnhub's
  * WebSocket in local dev only (the key is exposed, so this is never deployed).
  * Consumers (the watchlist store) only see the provider-agnostic `Trade` shape
- * and the `subscribe`/`setSymbols` API below, so Phase 7 can move this behind
+ * and the `subscribe`/`setSymbols` API below, so Phase 6 can move this behind
  * the BFF without touching stores or components.
  *
  * Responsibilities kept inside this module:

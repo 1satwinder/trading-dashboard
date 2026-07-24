@@ -38,7 +38,8 @@ decision is made. Keep them short.
 - **Status:** Accepted
 - **Context:** Trading apps are typically dark; green/red pop on dark backgrounds.
 - **Decision:** Build dark-first; add light theme as a later toggle.
-- **Consequences:** Design tokens defined for dark; light variant deferred to Phase 6.
+- **Consequences:** Design tokens defined for dark; light variant deferred to the Polish
+  phase (since delivered — persisted light/dark toggle).
 
 ## ADR-006 — Charts: lightweight-charts
 
@@ -63,7 +64,7 @@ decision is made. Keep them short.
 - **Decision:** Expand scope to a full-stack app: live market data + symbol search, a
   persisted watchlist, and **paper trading via Alpaca**. Real money stays out of scope.
 - **Consequences:** Requires external providers and (eventually) our own backend;
-  roadmap re-planned into Phases 4–10.
+  roadmap re-planned into Phases 4–11.
 
 ## ADR-009 — Data providers
 
@@ -115,10 +116,28 @@ decision is made. Keep them short.
   the latest price per symbol every ~400ms**, recomputing change % from `previousClose`.
   The socket reconnects with exponential backoff and reconciles subscriptions as the
   watchlist changes. Called **frontend-direct in local dev only**; it moves behind the
-  BFF (proxied WS/SSE) in Phase 7, same as REST.
+  BFF (proxied WS/SSE) in Phase 6, same as REST.
 - **Consequences:** Smooth live updates without hammering the REST quota; the buffer keeps
   re-renders cheap. Consumers depend only on a provider-agnostic `Trade` type, so the
   BFF transition won't touch stores or components. Ticks only arrive during market hours.
+
+## ADR-014 — Chart data: synthetic candles now, real bars via the BFF later
+
+- **Status:** Accepted (interim mock, like ADR-007)
+- **Context:** The Chart page (Phase 5) needs OHLCV candles at several intervals.
+  **Finnhub's `/stock/candle` is a premium endpoint** — a free key returns `403` — so
+  there is no frontend-direct path for candles like there is for quotes/search.
+- **Decision:** Generate **deterministic synthetic candles** on the client for now
+  (`marketData.fetchCandles`, a seeded random walk keyed by symbol + timeframe, stable
+  across reloads). Timeframe tabs are `{range, resolution}` presets (`CHART_TIMEFRAMES`).
+  Keep it behind the service seam so **Phase 6 swaps in real bars — Alpaca IEX
+  (`/v2/stocks/{symbol}/bars`, free) via the BFF** — without touching the store or the
+  `PriceChart` component. Charting library: **TradingView `lightweight-charts` v5**
+  (candlestick + overlay volume histogram; no built-in timeframe selector, so tabs are
+  ours).
+- **Consequences:** Chart UX is fully buildable now with no backend, keys, or market-hours
+  dependency. Real candles are a drop-in later. Alpaca market data stays server-side
+  (secret keys, CORS), consistent with ADR-010.
 
 ---
 
