@@ -47,6 +47,31 @@ export interface PortfolioSummary {
   dayChangePercent: number
 }
 
+/**
+ * A single open holding, derived from an Alpaca position. Money/quantity fields
+ * are numbers (Alpaca returns them as strings; the BFF parses them).
+ */
+export interface Position {
+  symbol: string
+  /** Position size; positive for long, negative for short. */
+  qty: number
+  side: 'long' | 'short'
+  /** Average fill price of the position. */
+  avgEntryPrice: number
+  /** Latest price used for the market value. */
+  currentPrice: number
+  marketValue: number
+  costBasis: number
+  /** Total unrealised profit/loss vs cost basis. */
+  unrealizedPl: number
+  /** Total unrealised P/L as a percentage. */
+  unrealizedPlPercent: number
+  /** Intraday unrealised P/L (today's move). */
+  dayChange: number
+  /** Intraday unrealised P/L as a percentage. */
+  dayChangePercent: number
+}
+
 /** A saved watchlist entry (persisted); quotes are fetched on top of these. */
 export interface WatchlistEntry {
   symbol: string

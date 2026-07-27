@@ -3,6 +3,7 @@ import type {
   ChartTimeframe,
   ChartTimeframeId,
   PortfolioSummary,
+  Position,
   Quote,
   SymbolSearchResult,
   WatchlistEntry,
@@ -11,12 +12,12 @@ import type {
 /**
  * Market-data service — the single data-access boundary (docs/04-architecture.md).
  *
- * Symbol search + quotes now go through the **BFF** at `/api/*` (Phase 6), which
- * owns the Finnhub key server-side. This file stays the seam: stores/components
- * call these functions and don't care where the data comes from. Candles are
- * still mock (Alpaca IEX bars via the BFF land later) and portfolio metrics stay
- * mock until Alpaca (Phase 8). The live WebSocket remains frontend-direct
- * (see `marketStream.ts` + ADR-015).
+ * Symbol search + quotes + chart candles now go through the **BFF** at `/api/*`
+ * (Phase 6), which owns the provider keys server-side (Finnhub for search/quotes,
+ * Alpaca for candles). This file stays the seam: stores/components call these
+ * functions and don't care where the data comes from. Portfolio metrics stay mock
+ * until Alpaca account/positions (Phase 7). The live WebSocket remains
+ * frontend-direct (see `marketStream.ts` + ADR-015).
  */
 
 class MarketDataError extends Error {}
@@ -99,17 +100,14 @@ export function fetchCandles(symbol: string, timeframeId: ChartTimeframeId): Pro
   )
 }
 
-// ---- Portfolio (mock until Alpaca, Phase 8) --------------------------------
+// ---- Portfolio (real, via Alpaca account + positions through the BFF) ------
 
-const PORTFOLIO_SUMMARY: PortfolioSummary = {
-  totalValue: 48250.3,
-  buyingPower: 12400,
-  dayChange: 1120,
-  dayChangePercent: 2.4,
+/** Account-level metrics (equity, buying power, day change) for the stat cards. */
+export function fetchPortfolioSummary(): Promise<PortfolioSummary> {
+  return api<PortfolioSummary>('/api/account')
 }
 
-export function fetchPortfolioSummary(): Promise<PortfolioSummary> {
-  return new Promise((resolve) =>
-    setTimeout(() => resolve(structuredClone(PORTFOLIO_SUMMARY)), 300),
-  )
+/** Open holdings, mapped from Alpaca positions server-side. */
+export function fetchPositions(): Promise<Position[]> {
+  return api<Position[]>('/api/positions')
 }

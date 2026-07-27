@@ -56,7 +56,7 @@ src/
 ├── components/   layout/ (shell, SymbolSearch), common/ (PriceTag, Sparkline, StatCard, LivePrice), feature dirs
 ├── views/        route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
 ├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, useChartStore, usePortfolioStore, …)
-├── services/     data access layer: marketData.ts (thin /api/* client: search + quotes + candles; mock portfolio), marketStream.ts (Finnhub WebSocket: live trades)
+├── services/     data access layer: marketData.ts (thin /api/* client: search + quotes + candles + account/positions), marketStream.ts (Finnhub WebSocket: live trades)
 ├── composables/  useBreakpoint, formatters, …
 ├── theme/        preset.ts — customized PrimeVue Aura preset
 ├── types/        shared TS types
@@ -148,7 +148,7 @@ UI mockups (reference designs) are in [`UI mockups/`](./UI%20mockups/).
 Phases 1–4 complete: project setup, responsive layout shell, the Watchlist page, and
 **real market data** — Finnhub symbol search (top-bar `AutoComplete`) + a live watchlist
 persisted in `localStorage`, with **real-time prices streamed over Finnhub's WebSocket**
-(`marketStream`). A persisted light/dark theme toggle (Polish, Phase 10) is also done.
+(`marketStream`). A persisted light/dark theme toggle (Polish, Phase 11) is also done.
 
 Phase 5 (Chart) core is done — `lightweight-charts` v5 candlestick + volume with 1D–5Y
 timeframe tabs (`ChartView` + `PriceChart` + `useChartStore`), now on **real candles**
@@ -161,5 +161,13 @@ and Vite proxies `/api` → the BFF. The synthetic candle generator is gone (ADR
 Only remaining Phase 6 item: moving the trade **WebSocket** server-side — still
 frontend-direct via `VITE_FINNHUB_API_KEY`, revisited at deploy (see ADR-015).
 
-**Next:** the WebSocket-behind-BFF item, then Portfolio (Phase 7), Alpaca paper trading
-(Phase 8), Markets & News (Phase 9). See `docs/06-roadmap.md` for authoritative status.
+Phase 7 (Alpaca account + positions) — done, read-only: `server/alpaca.ts` also hits
+Alpaca's **Trading** host (`paper-api.alpaca.markets`, `ALPACA_TRADING_URL`) via a shared
+`alpacaRequest()` and serves `/api/account` + `/api/positions`. The Watchlist StatCards now
+show **real** equity / buying power / day P/L (mock `fetchPortfolioSummary` deleted);
+`usePortfolioStore` also exposes `positions` + `loadPositions()` for the Phase 8 page. Same
+key/secret as candles, two hosts. No order placement yet (ADR-017).
+
+**Next:** Portfolio page on real data (Phase 8), Alpaca paper trading/orders (Phase 9),
+Markets & News (Phase 10); plus the deferred WebSocket-behind-BFF item. See
+`docs/06-roadmap.md` for authoritative status.

@@ -159,7 +159,7 @@ decision is made. Keep them short.
 - **Consequences:** The Finnhub REST key is server-side; stores/views were untouched thanks
   to the service seam. Two honest gaps remain, deferred by design: real candles (Alpaca IEX
   bars via the BFF) and **WS key-hiding** (proxied WS/SSE), both revisited later — the WS
-  exposure is called out at deploy (Phase 11). The in-memory cache resets per process; a
+  exposure is called out at deploy (Phase 12). The in-memory cache resets per process; a
   shared cache is only relevant once deployed serverless.
 
 ## ADR-016 — Real chart candles from Alpaca IEX via the BFF
@@ -184,6 +184,30 @@ decision is made. Keep them short.
   than `sip` and the latest bar is ~15 min delayed; off-hours/invalid symbols may return few
   or no bars (the chart's empty/loading states already cover this). Alpaca **trading**
   (orders/positions) remains a later phase; the live WebSocket is still frontend-direct.
+
+## ADR-017 — Alpaca account + positions via the BFF (read-only)
+
+- **Status:** Accepted (Phase 7)
+- **Context:** Portfolio (Phase 8) needs real holdings + account metrics. Rather than build
+  it on mock data and rewire later, we fetch the real Alpaca data first. Account/positions
+  live on Alpaca's **Trading API** (`paper-api.alpaca.markets`) — a different host from the
+  market-data API (`data.alpaca.markets`) already used for candles — but share the same
+  key/secret. No order placement yet (that's a write; Phase 9).
+- **Decision:** Extend `server/alpaca.ts` with a second base URL (`ALPACA_TRADING_URL`,
+  default `paper-api.alpaca.markets`) and a shared `alpacaRequest()` helper (auth headers +
+  `ProviderError` mapping, reused by candles). Add `GET /api/account` → `fetchAccount()` and
+  `GET /api/positions` → `fetchPositions()`. Alpaca returns numbers as strings, so the BFF
+  parses them and maps: account → `PortfolioSummary` (`totalValue`=equity, `buyingPower`,
+  `dayChange`=equity−`last_equity`, `dayChangePercent`); positions → `Position[]` (qty, side,
+  avg entry, current price, market value, cost basis, unrealised P/L + intraday P/L). Cached
+  ~5s. Client `marketData.fetchPortfolioSummary` now hits `/api/account` (mock deleted) and a
+  new `fetchPositions` hits `/api/positions`; `usePortfolioStore` gains `positions` +
+  `loadPositions()`. The existing Watchlist StatCards become real with no UI change.
+- **Consequences:** Portfolio metrics are real and keys stay server-side; the Portfolio page
+  (Phase 8) can build directly on `positions`. `dayChange` follows Alpaca's `last_equity`
+  (previous trading day 16:00 ET), so it can read 0 outside market hours. **Deferred:**
+  portfolio history (Phase 8 performance chart), place/cancel + close-position (Phase 9),
+  and account configurations (not needed now).
 
 ---
 

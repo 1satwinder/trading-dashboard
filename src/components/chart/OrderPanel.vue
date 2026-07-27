@@ -43,11 +43,11 @@ const orderNote = computed(() =>
 )
 
 function reviewOrder() {
-  // Non-functional until Phase 8 (Alpaca paper trading, server-side via the BFF).
+  // Non-functional until Phase 9 (Alpaca paper trading, server-side via the BFF).
   toast.add({
     severity: 'info',
     summary: 'Trading coming soon',
-    detail: `Paper trading (Alpaca) is wired up in Phase 8. This ${side.value} ticket for ${quantity.value} ${props.symbol} is a UI preview.`,
+    detail: `Paper trading (Alpaca) is wired up in Phase 9. This ${side.value} ticket for ${quantity.value} ${props.symbol} is a UI preview.`,
     life: 4000,
   })
 }

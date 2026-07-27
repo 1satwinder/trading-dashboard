@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import type { ChartTimeframeId } from '../src/types/market'
 import { ProviderError } from './errors'
 import { fetchQuotes, searchSymbols } from './finnhub'
-import { fetchBars } from './alpaca'
+import { fetchAccount, fetchBars, fetchPositions } from './alpaca'
 
 // Local dev only: load secrets from .env.local. In production (serverless),
 // env vars are injected by the platform and this file won't exist.
@@ -80,6 +80,24 @@ app.get('/api/candles', async (c) => {
   } catch (err) {
     const { status, body } = fail(err)
     return c.json(body, status as 400 | 429 | 500 | 502)
+  }
+})
+
+app.get('/api/account', async (c) => {
+  try {
+    return c.json(await fetchAccount())
+  } catch (err) {
+    const { status, body } = fail(err)
+    return c.json(body, status as 429 | 500 | 502)
+  }
+})
+
+app.get('/api/positions', async (c) => {
+  try {
+    return c.json(await fetchPositions())
+  } catch (err) {
+    const { status, body } = fail(err)
+    return c.json(body, status as 429 | 500 | 502)
   }
 })
 

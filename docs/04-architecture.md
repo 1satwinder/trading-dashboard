@@ -38,20 +38,25 @@ src/
 ```
 
 The backend-for-frontend lives outside `src/`, deployed alongside the SPA. As of
-Phase 6 it exists as a minimal Hono app (search + quotes); more lands later:
+Phase 7 it's a Hono app covering search + quotes + candles + account/positions:
 
 ```
 server/                  # backend-for-frontend (BFF) — Hono
-├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes, /api/candles
+├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes,
+│                        #   /api/candles, /api/account, /api/positions
 ├── finnhub.ts           # server-side Finnhub client + mapping (search + quotes; holds the REST key)
-├── alpaca.ts            # server-side Alpaca client (chart candles, free iex feed; holds key+secret)
-├── cache.ts             # shared in-memory TTL cache (search ~1h, quotes ~10s, candles ~30s–5m)
+├── alpaca.ts            # server-side Alpaca client: candles (data host) + account/positions (trading host)
+├── cache.ts             # shared in-memory TTL cache (search ~1h, quotes ~10s, candles ~30s–5m, account/positions ~5s)
 └── errors.ts            # shared ProviderError (status + message) for consistent /api responses
-#  later: Alpaca trading (orders, positions, account), /api/news
+#  later: Alpaca orders (place/cancel), portfolio history, /api/news
 ```
 
+Alpaca spans **two hosts**: market data (`data.alpaca.markets`) for candles and the
+Trading API (`paper-api.alpaca.markets`) for account + positions — same key/secret,
+different base URLs (`ALPACA_DATA_URL` / `ALPACA_TRADING_URL`).
+
 In dev, **Vite proxies `/api/*` → the BFF** (`vite.config.ts`, default `PORT` 8787),
-so the browser makes same-origin calls and never sees the provider key.
+so the browser makes same-origin calls and never sees the provider keys.
 
 ## Routing (pages)
 
@@ -146,6 +151,28 @@ marketStream (one shared wss://ws.finnhub.io socket)
 > Trades only flow during market hours; outside them the socket still connects ("Live")
 > but prices stay static until the next session.
 
+## Portfolio (Alpaca account + positions)
+
+Account metrics and holdings come from Alpaca's **Trading API**, kept server-side behind
+the BFF (read-only in Phase 7; orders arrive in Phase 9):
+
+```mermaid
+flowchart LR
+  Watch["Watchlist header (StatCards)"] --> Port["usePortfolioStore"]
+  Port --> MD["marketData.ts (thin fetch)"]
+  MD -->|"/api/account"| BFF["Hono BFF"]
+  MD -->|"/api/positions"| BFF
+  BFF -->|"key+secret headers (hidden)"| Alpaca["Alpaca Trading API (paper-api.alpaca.markets)"]
+```
+
+- **`server/alpaca.ts`** calls `GET /v2/account` and `GET /v2/positions` on the Trading
+  host, mapping Alpaca's string-typed numbers into `PortfolioSummary` (equity, buying
+  power, and `dayChange` = equity vs previous close `last_equity`) and `Position[]`.
+  Cached ~5s. See ADR-017.
+- **`marketData.fetchPortfolioSummary()` / `fetchPositions()`** are thin `/api/*` calls.
+- **`usePortfolioStore`** holds `summary` (drives the Watchlist StatCards via `load()`)
+  and `positions` (via `loadPositions()`, for the Phase 8 Portfolio page).
+
 ## External integration: why a backend-for-frontend
 
 Two hard constraints drive the architecture:
@@ -177,14 +204,15 @@ Watchlist ──▶ localStorage
 Fast to build; **key is exposed and quota is tiny — do not deploy this**, and never
 put an Alpaca key here.
 
-**Stage 3 — backend-for-frontend (in progress, Phase 6).**
+**Stage 3 — backend-for-frontend (in progress, Phase 6–7).**
 ```
-Browser ──▶ /api/* (our BFF) ──▶ Market-data provider   (keys hidden, cached)
-                              └─▶ Alpaca paper trading   (keys hidden, server-side) — later
+Browser ──▶ /api/* (our BFF) ──▶ Market-data providers  (Finnhub + Alpaca, keys hidden, cached)
+                              └─▶ Alpaca Trading API     (account + positions now; orders later)
 Watchlist ──▶ (interim) localStorage  →  (later) BFF + DB
 ```
 The BFF holds all secrets, caches market data, and is the only thing that talks to
-Alpaca. The frontend only ever calls our own `/api/*`. **Realized so far (Phase 6):**
-symbol search + quotes (Finnhub) and **chart candles (Alpaca IEX bars)** go through the
-Hono BFF. **Still frontend-direct:** the live trade WebSocket (revisited at deploy).
-**Still mock:** portfolio metrics (until Alpaca trading, Phase 8).
+Alpaca. The frontend only ever calls our own `/api/*`. **Realized so far:** symbol search
++ quotes (Finnhub), **chart candles (Alpaca IEX)**, and **account + positions (Alpaca
+Trading, read-only, Phase 7)** all go through the Hono BFF. **Still frontend-direct:** the
+live trade WebSocket (revisited at deploy). **Still to come:** Alpaca order placement
+(Phase 9).

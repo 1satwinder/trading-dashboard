@@ -1,17 +1,20 @@
-import type { Candle, ChartTimeframeId } from '../src/types/market'
+import type { Candle, ChartTimeframeId, PortfolioSummary, Position } from '../src/types/market'
 import { ProviderError } from './errors'
 import { cached } from './cache'
 
 /**
- * Server-side Alpaca market-data client — the candle provider for the BFF.
+ * Server-side Alpaca client for the BFF.
  *
- * Fetches real OHLCV bars from Alpaca's free **IEX** feed
- * (`GET /v2/stocks/{symbol}/bars`) and maps them into the app's `Candle` shape.
- * Keys live only here (server-side); the browser only ever sees `/api/candles`.
- * Replaces the old client-side synthetic candle generator (see ADR-016).
+ * Two Alpaca APIs live on different hosts:
+ *   - **Market Data** (`data.alpaca.markets`) → chart candles (`/api/candles`, ADR-016).
+ *   - **Trading** (`paper-api.alpaca.markets`) → account + positions (`/api/account`,
+ *     `/api/positions`, read-only in Phase 7 — ADR-017).
+ * Both use the same `APCA-API-KEY-ID` / `APCA-API-SECRET-KEY` headers, which live only
+ * here (server-side); the browser only ever sees our `/api/*`.
  */
 
 const ALPACA_DATA_URL = process.env.ALPACA_DATA_URL ?? 'https://data.alpaca.markets'
+const ALPACA_TRADING_URL = process.env.ALPACA_TRADING_URL ?? 'https://paper-api.alpaca.markets'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -50,6 +53,37 @@ function credentials(): { keyId: string; secretKey: string } {
   return { keyId, secretKey }
 }
 
+/** GET an Alpaca URL with auth headers, mapping failures to `ProviderError`. */
+async function alpacaRequest<T>(url: string | URL): Promise<T> {
+  const { keyId, secretKey } = credentials()
+
+  let res: Response
+  try {
+    res = await fetch(url, {
+      headers: {
+        'APCA-API-KEY-ID': keyId,
+        'APCA-API-SECRET-KEY': secretKey,
+      },
+    })
+  } catch {
+    throw new ProviderError(502, 'Upstream network error contacting Alpaca.')
+  }
+
+  if (res.status === 429) throw new ProviderError(429, 'Alpaca rate limit reached.')
+  if (res.status === 401 || res.status === 403) {
+    throw new ProviderError(502, 'Alpaca rejected the request — check ALPACA API credentials.')
+  }
+  if (!res.ok) throw new ProviderError(502, `Alpaca request failed (${res.status}).`)
+
+  return res.json() as Promise<T>
+}
+
+/** Parse an Alpaca numeric string (they're returned as strings) to a number. */
+function num(value: string | number | null | undefined): number {
+  const n = typeof value === 'string' ? Number(value) : (value ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
+
 /** One bar as returned by Alpaca's stock bars API. */
 interface AlpacaBar {
   t: string // RFC-3339 timestamp
@@ -79,8 +113,6 @@ export function fetchBars(symbol: string, timeframeId: ChartTimeframeId): Promis
   }
 
   return cached(`bars:${symbol}:${timeframeId}`, spec.ttlMs, async () => {
-    const { keyId, secretKey } = credentials()
-
     const url = new URL(`${ALPACA_DATA_URL}/v2/stocks/${encodeURIComponent(symbol)}/bars`)
     url.searchParams.set('timeframe', spec.timeframe)
     url.searchParams.set('feed', 'iex')
@@ -89,25 +121,7 @@ export function fetchBars(symbol: string, timeframeId: ChartTimeframeId): Promis
     url.searchParams.set('limit', String(spec.limit))
     url.searchParams.set('start', new Date(Date.now() - spec.lookbackMs).toISOString())
 
-    let res: Response
-    try {
-      res = await fetch(url, {
-        headers: {
-          'APCA-API-KEY-ID': keyId,
-          'APCA-API-SECRET-KEY': secretKey,
-        },
-      })
-    } catch {
-      throw new ProviderError(502, 'Upstream network error contacting Alpaca.')
-    }
-
-    if (res.status === 429) throw new ProviderError(429, 'Alpaca rate limit reached.')
-    if (res.status === 401 || res.status === 403) {
-      throw new ProviderError(502, 'Alpaca rejected the request — check ALPACA API credentials.')
-    }
-    if (!res.ok) throw new ProviderError(502, `Alpaca request failed (${res.status}).`)
-
-    const data = (await res.json()) as AlpacaBarsResponse
+    const data = await alpacaRequest<AlpacaBarsResponse>(url)
     const bars = data.bars ?? []
 
     // Alpaca returns newest-first (sort=desc); the chart wants oldest→newest.
@@ -126,5 +140,76 @@ function toCandle(bar: AlpacaBar): Candle {
     low: bar.l,
     close: bar.c,
     volume: bar.v,
+  }
+}
+
+// ---- Account + positions (Trading API, read-only — ADR-017) ----------------
+
+const ACCOUNT_TTL = 5_000
+const POSITIONS_TTL = 5_000
+
+/** Subset of Alpaca's account object we use (numeric fields are strings). */
+interface AlpacaAccount {
+  equity: string
+  last_equity: string
+  buying_power: string
+  cash: string
+}
+
+/**
+ * Fetch account-level metrics and derive the dashboard `PortfolioSummary`.
+ * `dayChange` is equity vs the previous trading day's close (`last_equity`).
+ */
+export function fetchAccount(): Promise<PortfolioSummary> {
+  return cached('account', ACCOUNT_TTL, async () => {
+    const a = await alpacaRequest<AlpacaAccount>(`${ALPACA_TRADING_URL}/v2/account`)
+    const equity = num(a.equity)
+    const lastEquity = num(a.last_equity)
+    const dayChange = equity - lastEquity
+    return {
+      totalValue: equity,
+      buyingPower: num(a.buying_power),
+      dayChange,
+      dayChangePercent: lastEquity > 0 ? (dayChange / lastEquity) * 100 : 0,
+    }
+  })
+}
+
+/** One open position as returned by Alpaca (numeric fields are strings). */
+interface AlpacaPosition {
+  symbol: string
+  qty: string
+  side: string
+  avg_entry_price: string
+  current_price: string
+  market_value: string
+  cost_basis: string
+  unrealized_pl: string
+  unrealized_plpc: string
+  unrealized_intraday_pl: string
+  unrealized_intraday_plpc: string
+}
+
+/** Fetch all open positions, mapped to the app's `Position` shape. */
+export function fetchPositions(): Promise<Position[]> {
+  return cached('positions', POSITIONS_TTL, async () => {
+    const positions = await alpacaRequest<AlpacaPosition[]>(`${ALPACA_TRADING_URL}/v2/positions`)
+    return (positions ?? []).map(toPosition)
+  })
+}
+
+function toPosition(p: AlpacaPosition): Position {
+  return {
+    symbol: p.symbol,
+    qty: num(p.qty),
+    side: p.side === 'short' ? 'short' : 'long',
+    avgEntryPrice: num(p.avg_entry_price),
+    currentPrice: num(p.current_price),
+    marketValue: num(p.market_value),
+    costBasis: num(p.cost_basis),
+    unrealizedPl: num(p.unrealized_pl),
+    unrealizedPlPercent: num(p.unrealized_plpc) * 100,
+    dayChange: num(p.unrealized_intraday_pl),
+    dayChangePercent: num(p.unrealized_intraday_plpc) * 100,
   }
 }

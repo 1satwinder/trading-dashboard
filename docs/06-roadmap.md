@@ -76,10 +76,10 @@ See `04-architecture.md` for the data-source evolution.
       same seam Phase 6 swaps for real bars (Alpaca IEX via BFF). `/chart/:symbol?` route;
       watchlist rows link to it. See ADR-014.)_
 - [x] Order panel UI on the chart page (Buy/Sell, order type, quantity, estimated cost) —
-      non-functional until wired to real orders in Phase 8.
+      non-functional until wired to real orders in Phase 9.
       _(`OrderPanel`: buy/sell toggle, Market/Limit/Stop select (with limit/stop price),
       quantity stepper, live estimated cost; "Review Order" shows a toast noting trading
-      lands in Phase 8.)_
+      lands in Phase 9.)_
 - [x] Chart enhancements: chart-type toggle + indicators + fullscreen.
       _(In-card toolbar: candlestick/line/area toggle, an indicators popover with SMA 20/50
       overlays (computed client-side), and native Fullscreen-API toggle. Timeframe tabs
@@ -107,38 +107,57 @@ See `04-architecture.md` for the data-source evolution.
       oldest→newest, cached ~30s–5m. Client `fetchCandles` is now a thin `/api` call; the
       mock generator is gone. Shared `server/cache.ts` + `server/errors.ts`. See ADR-016.)_
 - [ ] Move the **trade WebSocket** behind the BFF (proxied WS/SSE). _(Still frontend-direct;
-      it carries `VITE_FINNHUB_API_KEY`, revisited at deploy — Phase 11.)_
+      it carries `VITE_FINNHUB_API_KEY`, revisited at deploy — Phase 12.)_
 - [x] Verify search + watchlist (incl. streaming) + chart candles work through the BFF with
       keys hidden; `type-check` + `lint` clean.
 
-## Phase 7 — Portfolio
+## Phase 7 — Alpaca account + positions (read-only)
 
-> Split out from the old Chart phase. Portfolio page UI; **real holdings arrive with Alpaca
-> positions (Phase 8)** — mock until then, consistent with the mock-first approach.
+> Reordered ahead of Portfolio: fetch the **real** Alpaca data Portfolio is built on first,
+> so the page isn't built on mock and rewired later. Read-only — no order placement yet.
 
-- [ ] Portfolio: allocation donut, holdings table, performance chart (mock until Alpaca).
+- [x] Alpaca client in the BFF: `account` (equity, buying power) + `positions` (holdings,
+      cost basis, market value, unrealised P/L). New `/api/account` + `/api/positions`.
+      _(`server/alpaca.ts` now also hits the **Trading** host `paper-api.alpaca.markets`
+      via a shared `alpacaRequest()`; maps to `PortfolioSummary` + `Position[]`, cached ~5s.
+      See ADR-017.)_
+- [x] Replace the mock `fetchPortfolioSummary` with real account-derived metrics.
+      _(`marketData.ts` → `/api/account`; the Watchlist StatCards now show real equity /
+      buying power / day P/L. `fetchPositions` + `usePortfolioStore.loadPositions()` are
+      ready for the Phase 8 page.)_
+- [x] Single shared paper account, no user auth (ADR-012).
+- [ ] _Deferred to Phase 8:_ portfolio history endpoint (performance chart).
 
-## Phase 8 — Alpaca paper trading
+## Phase 8 — Portfolio
 
-- [ ] Alpaca client in the BFF: account, positions, place/cancel orders, order status.
-- [ ] Wire the chart's order panel → real paper orders; portfolio → real positions.
-- [ ] Uses a single shared paper account, no user auth (ADR-012).
+> Split out from the old Chart phase. Now built directly on the **real** Alpaca account +
+> positions from Phase 7 — no mock detour.
 
-## Phase 9 — Markets & News
+- [ ] Portfolio: allocation donut, holdings table, performance chart (on Alpaca positions).
+
+## Phase 9 — Alpaca paper trading (orders)
+
+> The write half of Alpaca: place/cancel orders, wired to the chart's order panel.
+
+- [ ] Alpaca orders in the BFF: place/cancel orders + order status.
+- [ ] Wire the chart's order panel → real paper orders; reflect fills in positions/portfolio.
+- [ ] Single shared paper account, no user auth (ADR-012).
+
+## Phase 10 — Markets & News
 
 > Both consume Finnhub data through the BFF (Phase 6).
 
 - [ ] Markets: index cards, movers tables, sector heatmap.
 - [ ] News: feed of article cards.
 
-## Phase 10 — Polish
+## Phase 11 — Polish
 
 - [x] Light theme + persisted theme toggle.
 - [ ] Loading/empty/error states; skeletons.
 - [ ] Accessibility pass (keyboard nav, contrast, ARIA).
 - [ ] Responsive QA on real devices.
 
-## Phase 11 — Deploy
+## Phase 12 — Deploy
 
 - [ ] Deploy frontend + BFF (e.g. Vercel/Netlify); configure secrets/env.
 - [ ] Write the project README (screenshots, live demo, setup).
