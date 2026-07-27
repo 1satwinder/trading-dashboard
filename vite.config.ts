@@ -17,4 +17,14 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // Same-origin proxy to the BFF in dev, so the browser never sees provider
+    // keys and there's no CORS. The BFF runs on PORT (default 8787).
+    proxy: {
+      '/api': {
+        target: `http://localhost:${process.env.PORT ?? 8787}`,
+        changeOrigin: true,
+      },
+    },
+  },
 })

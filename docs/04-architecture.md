@@ -37,14 +37,19 @@ src/
 └── App.vue / main.ts
 ```
 
-Once the backend exists, it lives outside `src/` (deployed alongside the SPA):
+The backend-for-frontend lives outside `src/`, deployed alongside the SPA. As of
+Phase 6 it exists as a minimal Hono app (search + quotes); more lands later:
 
 ```
-server/                  # backend-for-frontend (BFF) — planned
-├── routes/              # /api/search, /api/quote, /api/candles, /api/orders, ...
-├── providers/           # Alpaca + market-data clients (hold secret keys)
-└── cache/               # response caching to survive tight provider rate limits
+server/                  # backend-for-frontend (BFF) — Hono
+├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes
+│                        #   + in-memory TTL cache (search ~1h, quotes ~10s)
+└── finnhub.ts           # server-side Finnhub client + response mapping (holds the key)
+#  later: providers/alpaca.ts (orders, positions, account), /api/candles, /api/news
 ```
+
+In dev, **Vite proxies `/api/*` → the BFF** (`vite.config.ts`, default `PORT` 8787),
+so the browser makes same-origin calls and never sees the provider key.
 
 ## Routing (pages)
 
@@ -95,7 +100,7 @@ The service layer is the seam that lets the data source evolve in three stages
 Adding a symbol to the watchlist starts with a type-ahead search in the top bar:
 
 ```
-SymbolSearch (AutoComplete) → useSearchStore.search() → marketData.searchSymbols() → Finnhub /search
+SymbolSearch (AutoComplete) → useSearchStore.search() → marketData.searchSymbols() → /api/search → BFF → Finnhub /search
                             ↳ select result → useWatchlistStore.add()
 ```
 
@@ -106,8 +111,11 @@ SymbolSearch (AutoComplete) → useSearchStore.search() → marketData.searchSym
 - **`useSearchStore`** runs the request and holds `query` / `results` / `loading` /
   `error`. It stamps each request with a sequence number so **out-of-order responses
   from earlier keystrokes are ignored** (only the latest query wins).
-- **`marketData.searchSymbols()`** calls Finnhub `/search` and filters to clean US
-  listings so the dropdown stays lookup-able.
+- **`marketData.searchSymbols()`** is a thin `fetch('/api/search?q=')` wrapper (Phase 6).
+  The BFF (`server/finnhub.ts`) calls Finnhub `/search`, filters to clean US listings,
+  and caches results so the dropdown stays lookup-able without burning quota. Quotes work
+  the same way: `marketData.fetchQuotes()` → `GET /api/quotes?symbols=` (batched + cached
+  server-side), then the client attaches each watchlist display name.
 
 ## Real-time streaming (WebSocket)
 
@@ -123,7 +131,9 @@ marketStream (one shared wss://ws.finnhub.io socket)
   `unsubscribe` frames as the watchlist changes), and **reconnects with exponential
   backoff** (1s → 30s), re-subscribing on reconnect. Consumers only see the
   provider-agnostic `Trade` type plus `setSymbols()` / `onTrades()` / `onStatus()` —
-  so Phase 6 can move this behind the BFF (proxied WS or SSE) without touching stores.
+  so it can later move behind the BFF (proxied WS or SSE) without touching stores. Phase 6
+  moved REST (search/quotes) server-side but **kept the WS frontend-direct** (still carries
+  `VITE_FINNHUB_API_KEY`); hardening it is deferred to deploy (ADR-015).
 - **`useWatchlistStore`** calls `connect()` / `disconnect()` (from the view's mount /
   unmount) and **buffers incoming trades**, flushing the latest price per symbol on a
   400ms interval to avoid excessive re-renders (Finnhub can push many ticks/sec).
@@ -165,11 +175,14 @@ Watchlist ──▶ localStorage
 Fast to build; **key is exposed and quota is tiny — do not deploy this**, and never
 put an Alpaca key here.
 
-**Stage 3 — backend-for-frontend (target).**
+**Stage 3 — backend-for-frontend (in progress, Phase 6).**
 ```
 Browser ──▶ /api/* (our BFF) ──▶ Market-data provider   (keys hidden, cached)
-                              └─▶ Alpaca paper trading   (keys hidden, server-side)
+                              └─▶ Alpaca paper trading   (keys hidden, server-side) — later
 Watchlist ──▶ (interim) localStorage  →  (later) BFF + DB
 ```
 The BFF holds all secrets, caches market data, and is the only thing that talks to
-Alpaca. The frontend only ever calls our own `/api/*`.
+Alpaca. The frontend only ever calls our own `/api/*`. **Realized so far (Phase 6):**
+symbol search + quotes go through a Hono BFF. **Still frontend-direct:** the live trade
+WebSocket (revisited at deploy). **Still mock:** candles (Alpaca IEX bars via the BFF
+later) and portfolio metrics (until Alpaca, Phase 8).

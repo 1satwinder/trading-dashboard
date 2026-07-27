@@ -139,6 +139,29 @@ decision is made. Keep them short.
   dependency. Real candles are a drop-in later. Alpaca market data stays server-side
   (secret keys, CORS), consistent with ADR-010.
 
+## ADR-015 — Concrete BFF: standalone Hono `/api`, in-memory cache, WS stays frontend-direct
+
+- **Status:** Accepted (realizes ADR-010, Phase 6)
+- **Context:** ADR-010 committed to a backend-for-frontend to hide keys and centralize
+  the data layer. Phase 6 makes it concrete. Symbol search + quotes were still
+  frontend-direct (exposed `VITE_FINNHUB_API_KEY`); we want them behind a server before
+  layering on Portfolio and Alpaca paper trading.
+- **Decision:** Stand up a **standalone Hono server in `server/`** (`@hono/node-server`,
+  `tsx` in dev on `PORT` 8787) exposing `GET /api/health`, `/api/search?q=`, and
+  `/api/quotes?symbols=`. The provider client + response mapping moved out of
+  `src/services/marketData.ts` into `server/finnhub.ts`; the client service is now a thin
+  `fetch('/api/*')` wrapper. **Vite proxies `/api` → the BFF** in dev, so the browser makes
+  same-origin calls with no CORS and never sees the REST key. A small **in-memory TTL
+  cache** (search ~1h, quotes ~10s) protects Finnhub's free-tier quota. Shared shapes
+  (`Quote`, `SymbolSearchResult`) are imported type-only from `src/types/market.ts` so the
+  contract stays single-source. **Scope is deliberately narrow:** candles stay mock and the
+  **live WebSocket stays frontend-direct** (still carries `VITE_FINNHUB_API_KEY`).
+- **Consequences:** The Finnhub REST key is server-side; stores/views were untouched thanks
+  to the service seam. Two honest gaps remain, deferred by design: real candles (Alpaca IEX
+  bars via the BFF) and **WS key-hiding** (proxied WS/SSE), both revisited later — the WS
+  exposure is called out at deploy (Phase 11). The in-memory cache resets per process; a
+  shared cache is only relevant once deployed serverless.
+
 ---
 
 ### Open decisions (not yet resolved)

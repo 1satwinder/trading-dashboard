@@ -1,0 +1,12 @@
+// TSConfig for the backend-for-frontend (BFF) in `server/`, run via tsx in dev.
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "include": ["server/**/*"],
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.server.tsbuildinfo"
+  }
+}

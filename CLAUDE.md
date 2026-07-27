@@ -31,14 +31,19 @@ Node: `^22.18.0 || >=24.12.0`.
 ## Commands
 
 ```bash
-npm run dev          # start Vite dev server (http://localhost:5173)
+npm run dev          # web (Vite :5173) + BFF (Hono :8787) together via run-p
+npm run dev:web      # Vite dev server only
+npm run dev:api      # BFF only (tsx watch server/index.ts; loads .env.local)
 npm run build        # type-check + production build
 npm run preview      # preview the production build
-npm run type-check   # vue-tsc --build
+npm run type-check   # vue-tsc --build (covers src/ + server/)
 npm run lint         # oxlint + eslint (autofix)
 npm run format       # prettier
 npm run test:unit    # vitest
 ```
+
+The BFF needs `FINNHUB_API_KEY` in `.env.local` (server-side); the WebSocket still uses
+`VITE_FINNHUB_API_KEY` (see `.env.example`).
 
 Prefer `npm run type-check` for ground-truth TS errors (the in-editor TS server can
 show stale errors right after installing a package).
@@ -50,25 +55,31 @@ src/
 ├── components/   layout/ (shell, SymbolSearch), common/ (PriceTag, Sparkline, StatCard, LivePrice), feature dirs
 ├── views/        route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
 ├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, useChartStore, usePortfolioStore, …)
-├── services/     data access layer: marketData.ts (Finnhub REST: search + quotes), marketStream.ts (Finnhub WebSocket: live trades)
+├── services/     data access layer: marketData.ts (thin /api/* client: search + quotes; mock candles/portfolio), marketStream.ts (Finnhub WebSocket: live trades)
 ├── composables/  useBreakpoint, formatters, …
 ├── theme/        preset.ts — customized PrimeVue Aura preset
 ├── types/        shared TS types
 ├── router/       Vue Router config
 └── main.ts, App.vue
+
+server/           # backend-for-frontend (Hono) — Phase 6
+├── index.ts      # Hono app + node-server: /api/health, /api/search, /api/quotes + TTL cache
+└── finnhub.ts    # server-side Finnhub client + mapping (owns FINNHUB_API_KEY)
 ```
 
-Data flow: **View → Pinia store → service layer → (mock | frontend-direct | BFF)**.
-Keep all provider/backend details behind `services/` so the data source can evolve
-without touching views. External providers: **Alpaca** (paper trading, server-side only)
-+ **Finnhub** (symbol search/quotes/candles/news). BFF = TypeScript serverless
-(Vercel/Netlify); single shared paper account, no auth. See ADR-009/010/012.
+Data flow: **View → Pinia store → service layer → BFF (`/api/*`) → provider**.
+Keep all provider/backend details behind `services/` (client) + `server/` (BFF) so the
+data source can evolve without touching views. Search + quotes now go through the **Hono
+BFF** (`server/`), which owns the Finnhub REST key; Vite proxies `/api` → the BFF in dev.
+External providers: **Alpaca** (paper trading, server-side only) + **Finnhub** (symbol
+search/quotes/candles/news). Single shared paper account, no auth. See ADR-009/010/012/015.
 
 Real-time: the watchlist streams live prices over **one shared Finnhub WebSocket**
 (`marketStream`). `useWatchlistStore` owns the `connect()`/`disconnect()` lifecycle,
 buffers ticks and flushes the latest price per symbol every ~400ms (recomputing
 change % from `previousClose`); `marketStream` reconciles subscriptions and reconnects
-with backoff. Frontend-direct in dev, moves behind the BFF later. See ADR-013.
+with backoff. **Still frontend-direct** (uses `VITE_FINNHUB_API_KEY`) — Phase 6 moved only
+REST server-side; the WS is hardened at deploy. See ADR-013/015.
 
 `@/` is aliased to `src/`.
 
@@ -139,7 +150,11 @@ timeframe tabs (`ChartView` + `PriceChart` + `useChartStore`), on **mock candles
 (`fetchCandles`; Finnhub candles are premium, real bars come via the BFF in Phase 6 — see
 ADR-014).
 
-**Next: Phase 6 — the backend-for-frontend (BFF), pulled forward** so the existing features
-(search, watchlist + stream, chart) run on real data with keys hidden, then verified
-end-to-end. After that: Portfolio (Phase 7), Alpaca paper trading (Phase 8), Markets & News
-(Phase 9). See `docs/06-roadmap.md` for authoritative status.
+Phase 6 (BFF) — first slice done: a standalone **Hono** server in `server/` owns the
+Finnhub REST key and serves `/api/search` + `/api/quotes` (with a small in-memory TTL
+cache); `marketData.ts` is now a thin `/api/*` client, and Vite proxies `/api` → the BFF.
+Still deferred within Phase 6: moving the trade **WebSocket** server-side and **real candles**
+(Alpaca IEX bars) — both keep their current mock/frontend-direct behavior (see ADR-015).
+
+**Next:** finish the deferred BFF items, then Portfolio (Phase 7), Alpaca paper trading
+(Phase 8), Markets & News (Phase 9). See `docs/06-roadmap.md` for authoritative status.
