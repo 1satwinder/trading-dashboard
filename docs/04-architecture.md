@@ -42,10 +42,12 @@ Phase 6 it exists as a minimal Hono app (search + quotes); more lands later:
 
 ```
 server/                  # backend-for-frontend (BFF) — Hono
-├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes
-│                        #   + in-memory TTL cache (search ~1h, quotes ~10s)
-└── finnhub.ts           # server-side Finnhub client + response mapping (holds the key)
-#  later: providers/alpaca.ts (orders, positions, account), /api/candles, /api/news
+├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes, /api/candles
+├── finnhub.ts           # server-side Finnhub client + mapping (search + quotes; holds the REST key)
+├── alpaca.ts            # server-side Alpaca client (chart candles, free iex feed; holds key+secret)
+├── cache.ts             # shared in-memory TTL cache (search ~1h, quotes ~10s, candles ~30s–5m)
+└── errors.ts            # shared ProviderError (status + message) for consistent /api responses
+#  later: Alpaca trading (orders, positions, account), /api/news
 ```
 
 In dev, **Vite proxies `/api/*` → the BFF** (`vite.config.ts`, default `PORT` 8787),
@@ -183,6 +185,6 @@ Watchlist ──▶ (interim) localStorage  →  (later) BFF + DB
 ```
 The BFF holds all secrets, caches market data, and is the only thing that talks to
 Alpaca. The frontend only ever calls our own `/api/*`. **Realized so far (Phase 6):**
-symbol search + quotes go through a Hono BFF. **Still frontend-direct:** the live trade
-WebSocket (revisited at deploy). **Still mock:** candles (Alpaca IEX bars via the BFF
-later) and portfolio metrics (until Alpaca, Phase 8).
+symbol search + quotes (Finnhub) and **chart candles (Alpaca IEX bars)** go through the
+Hono BFF. **Still frontend-direct:** the live trade WebSocket (revisited at deploy).
+**Still mock:** portfolio metrics (until Alpaca trading, Phase 8).

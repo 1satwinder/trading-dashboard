@@ -89,8 +89,8 @@ See `04-architecture.md` for the data-source evolution.
 
 > Pulled forward: the riskiest architectural piece, de-risked early against three real
 > consumers (search, watchlist + live stream, chart). Required for secret keys, CORS, and
-> caching — and it unblocks **real candles** and Alpaca paper trading. First slice done
-> (search + quotes); candles, WS-hardening, and Alpaca land later.
+> caching — and it unblocks **real candles** and Alpaca paper trading. Search + quotes and
+> **real Alpaca candles** are done; WS-hardening is the one remaining Phase 6 item.
 
 - [x] Stand up BFF with `/api/*` routes. _(Standalone **Hono** app in `server/`
       (`@hono/node-server`, `tsx` in dev on `PORT` 8787): `/api/health`, `/api/search`,
@@ -101,11 +101,15 @@ See `04-architecture.md` for the data-source evolution.
       in-memory TTL cache: search ~1h, quotes ~10s.)_
 - [x] Point the frontend service layer at the BFF for **symbol search + quotes**.
       _(`marketData.ts` is now a thin `fetch('/api/*')` wrapper; stores/views untouched.)_
+- [x] **Real candles** via the BFF (Alpaca IEX bars) — replaces the synthetic `fetchCandles`.
+      _(`server/alpaca.ts` + `GET /api/candles?symbol=&timeframe=`, free `iex` feed, keys
+      server-side. Owns the timeframe→bars mapping; `sort=desc`+`start`, reversed to
+      oldest→newest, cached ~30s–5m. Client `fetchCandles` is now a thin `/api` call; the
+      mock generator is gone. Shared `server/cache.ts` + `server/errors.ts`. See ADR-016.)_
 - [ ] Move the **trade WebSocket** behind the BFF (proxied WS/SSE). _(Still frontend-direct;
       it carries `VITE_FINNHUB_API_KEY`, revisited at deploy — Phase 11.)_
-- [ ] **Real candles** via the BFF (Alpaca IEX bars) — replaces the mock `fetchCandles`.
-- [x] Verify search + watchlist (incl. streaming) work through the BFF with the REST key
-      hidden; `type-check` + `lint` clean.
+- [x] Verify search + watchlist (incl. streaming) + chart candles work through the BFF with
+      keys hidden; `type-check` + `lint` clean.
 
 ## Phase 7 — Portfolio
 

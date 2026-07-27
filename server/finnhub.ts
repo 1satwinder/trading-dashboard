@@ -1,4 +1,6 @@
 import type { Quote, SymbolSearchResult } from '../src/types/market'
+import { ProviderError } from './errors'
+import { cached } from './cache'
 
 /**
  * Server-side Finnhub client — the provider half of the BFF (docs/04-architecture.md).
@@ -11,20 +13,10 @@ import type { Quote, SymbolSearchResult } from '../src/types/market'
 
 const FINNHUB_BASE = 'https://finnhub.io/api/v1'
 
-/** Error carrying the HTTP status the BFF should return to the client. */
-export class FinnhubError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message)
-  }
-}
-
 function requireKey(): string {
   const key = process.env.FINNHUB_API_KEY
   if (!key) {
-    throw new FinnhubError(500, 'Server is missing FINNHUB_API_KEY (see .env.example).')
+    throw new ProviderError(500, 'Server is missing FINNHUB_API_KEY (see .env.example).')
   }
   return key
 }
@@ -38,28 +30,12 @@ async function finnhub<T>(path: string, params: Record<string, string>): Promise
   try {
     res = await fetch(url)
   } catch {
-    throw new FinnhubError(502, 'Upstream network error contacting Finnhub.')
+    throw new ProviderError(502, 'Upstream network error contacting Finnhub.')
   }
 
-  if (res.status === 429) throw new FinnhubError(429, 'Finnhub rate limit reached.')
-  if (!res.ok) throw new FinnhubError(502, `Finnhub request failed (${res.status}).`)
+  if (res.status === 429) throw new ProviderError(429, 'Finnhub rate limit reached.')
+  if (!res.ok) throw new ProviderError(502, `Finnhub request failed (${res.status}).`)
   return res.json() as Promise<T>
-}
-
-// ---- Tiny in-memory TTL cache ---------------------------------------------
-
-interface CacheEntry<T> {
-  value: T
-  expires: number
-}
-const cache = new Map<string, CacheEntry<unknown>>()
-
-async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
-  const hit = cache.get(key)
-  if (hit && hit.expires > Date.now()) return hit.value as T
-  const value = await fn()
-  cache.set(key, { value, expires: Date.now() + ttlMs })
-  return value
 }
 
 const SEARCH_TTL = 60 * 60 * 1000 // 1 hour — symbol metadata is stable
@@ -144,8 +120,8 @@ export async function fetchQuotes(symbols: string[]): Promise<Quote[]> {
 
 /**
  * Rough intraday shape from a single quote (previous close, open, low, high,
- * current). Not a true time series — just enough to give a row a trend cue
- * until real candles arrive (Alpaca IEX bars, later phase).
+ * current). Not a true time series — just a cheap trend cue for a watchlist row
+ * (the full candle series comes from Alpaca via `/api/candles`).
  */
 function buildSparkline(q: FinnhubQuote): number[] {
   const pts = [q.pc, q.o, q.l, q.h, q.c].filter((n) => typeof n === 'number' && n > 0)

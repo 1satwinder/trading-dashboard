@@ -123,7 +123,7 @@ decision is made. Keep them short.
 
 ## ADR-014 — Chart data: synthetic candles now, real bars via the BFF later
 
-- **Status:** Accepted (interim mock, like ADR-007)
+- **Status:** Superseded by ADR-016 (real candles now served from Alpaca via the BFF)
 - **Context:** The Chart page (Phase 5) needs OHLCV candles at several intervals.
   **Finnhub's `/stock/candle` is a premium endpoint** — a free key returns `403` — so
   there is no frontend-direct path for candles like there is for quotes/search.
@@ -161,6 +161,29 @@ decision is made. Keep them short.
   bars via the BFF) and **WS key-hiding** (proxied WS/SSE), both revisited later — the WS
   exposure is called out at deploy (Phase 11). The in-memory cache resets per process; a
   shared cache is only relevant once deployed serverless.
+
+## ADR-016 — Real chart candles from Alpaca IEX via the BFF
+
+- **Status:** Accepted (supersedes ADR-014, Phase 6)
+- **Context:** ADR-014 shipped the Chart page on **synthetic** candles because Finnhub's
+  `/stock/candle` is premium (free key → `403`). With the BFF in place (ADR-015), we can
+  now hide provider keys server-side, so real candles are viable without exposing anything
+  to the browser. Alpaca provides free historical bars (`GET /v2/stocks/{symbol}/bars`).
+- **Decision:** Add a server-side Alpaca client (`server/alpaca.ts`) and a
+  `GET /api/candles?symbol=&timeframe=` route. It fetches the **free `iex` feed** with
+  `APCA-API-KEY-ID`/`APCA-API-SECRET-KEY` (from `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY`,
+  server-only), owns the timeframe → `{timeframe, limit, lookback}` mapping, requests
+  `sort=desc` + an explicit `start` (Alpaca defaults `start` to the start of *today*, which
+  would starve daily/weekly ranges) and reverses bars to oldest→newest, mapping
+  `{t,o,h,l,c,v}` → `Candle` (epoch **seconds**). Results are cached (intraday ~30–60s,
+  daily/weekly ~5m). The client `marketData.fetchCandles` becomes a thin `/api/candles`
+  call and the synthetic generator is deleted. The TTL cache + provider-error type are
+  factored into shared `server/cache.ts` + `server/errors.ts` (used by Finnhub too).
+- **Consequences:** The Chart page runs on real market data with keys hidden and the store /
+  `PriceChart` untouched (service seam held). Trade-offs of the free tier: `iex` is thinner
+  than `sip` and the latest bar is ~15 min delayed; off-hours/invalid symbols may return few
+  or no bars (the chart's empty/loading states already cover this). Alpaca **trading**
+  (orders/positions) remains a later phase; the live WebSocket is still frontend-direct.
 
 ---
 

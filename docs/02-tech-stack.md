@@ -41,6 +41,9 @@ The app integrates two kinds of external service, plus (eventually) our own back
 
 - **Alpaca Paper Trading API** for orders, order status, positions, and account.
   Free real-time paper account; a strong portfolio demonstration.
+- Also used for **chart candles now** (Market Data API, free `iex` feed:
+  `GET /v2/stocks/{symbol}/bars`) via the BFF — see `marketData.fetchCandles`,
+  `server/alpaca.ts`, and ADR-016.
 - Keys are **secret** and the API is **not browser-CORS-friendly** → Alpaca is only
   ever called **server-side** (see the BFF in `04-architecture.md`). No exceptions.
 - Note: Alpaca has market data (bars/quotes) but **no symbol search**, so a
@@ -51,9 +54,11 @@ The app integrates two kinds of external service, plus (eventually) our own back
 > **Decided:** Finnhub (ADR-009). Chosen over Alpha Vantage (free tier ~25 req/day is
 > too tight) and Twelve Data.
 
-- **Finnhub** for symbol search (`/search`), quotes, candles, and news; ~60 req/min free
-  tier, browser CORS, and a trade **WebSocket** used for the live watchlist (see
-  `marketStream` in `04-architecture.md`).
+- **Finnhub** for symbol search (`/search`), quotes, and news; ~60 req/min free
+  tier, and a trade **WebSocket** used for the live watchlist (see `marketStream` in
+  `04-architecture.md`). Search + quotes are served through the BFF (ADR-015); the WS is
+  still frontend-direct. Candles come from **Alpaca**, not Finnhub (its `/stock/candle`
+  is premium — see ADR-016).
 - Kept behind the service layer / BFF so it can be swapped if needed.
 
 ### Backend-for-frontend (BFF) — planned
