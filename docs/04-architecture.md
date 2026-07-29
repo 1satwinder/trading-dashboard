@@ -43,12 +43,12 @@ Phase 7 it's a Hono app covering search + quotes + candles + account/positions:
 ```
 server/                  # backend-for-frontend (BFF) — Hono
 ├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes,
-│                        #   /api/candles, /api/account, /api/positions
+│                        #   /api/candles, /api/account, /api/positions, /api/portfolio/history
 ├── finnhub.ts           # server-side Finnhub client + mapping (search + quotes; holds the REST key)
-├── alpaca.ts            # server-side Alpaca client: candles (data host) + account/positions (trading host)
-├── cache.ts             # shared in-memory TTL cache (search ~1h, quotes ~10s, candles ~30s–5m, account/positions ~5s)
+├── alpaca.ts            # server-side Alpaca client: candles (data host) + account/positions/history (trading host)
+├── cache.ts             # shared in-memory TTL cache (search ~1h, quotes ~10s, candles ~30s–5m, account/positions ~5s, history ~30s)
 └── errors.ts            # shared ProviderError (status + message) for consistent /api responses
-#  later: Alpaca orders (place/cancel), portfolio history, /api/news
+#  later: Alpaca orders (place/cancel), /api/news
 ```
 
 Alpaca spans **two hosts**: market data (`data.alpaca.markets`) for candles and the
@@ -153,25 +153,33 @@ marketStream (one shared wss://ws.finnhub.io socket)
 
 ## Portfolio (Alpaca account + positions)
 
-Account metrics and holdings come from Alpaca's **Trading API**, kept server-side behind
-the BFF (read-only in Phase 7; orders arrive in Phase 9):
+Account metrics, holdings, and equity history come from Alpaca's **Trading API**, kept
+server-side behind the BFF (read-only in Phase 7–8; orders arrive in Phase 9):
 
 ```mermaid
 flowchart LR
   Watch["Watchlist header (StatCards)"] --> Port["usePortfolioStore"]
+  PView["PortfolioView (donut, chart, holdings)"] --> Port
   Port --> MD["marketData.ts (thin fetch)"]
   MD -->|"/api/account"| BFF["Hono BFF"]
   MD -->|"/api/positions"| BFF
+  MD -->|"/api/portfolio/history"| BFF
   BFF -->|"key+secret headers (hidden)"| Alpaca["Alpaca Trading API (paper-api.alpaca.markets)"]
 ```
 
-- **`server/alpaca.ts`** calls `GET /v2/account` and `GET /v2/positions` on the Trading
-  host, mapping Alpaca's string-typed numbers into `PortfolioSummary` (equity, buying
-  power, and `dayChange` = equity vs previous close `last_equity`) and `Position[]`.
-  Cached ~5s. See ADR-017.
-- **`marketData.fetchPortfolioSummary()` / `fetchPositions()`** are thin `/api/*` calls.
-- **`usePortfolioStore`** holds `summary` (drives the Watchlist StatCards via `load()`)
-  and `positions` (via `loadPositions()`, for the Phase 8 Portfolio page).
+- **`server/alpaca.ts`** calls `GET /v2/account`, `GET /v2/positions`, and
+  `GET /v2/account/portfolio/history` on the Trading host, mapping Alpaca's string-typed
+  numbers into `PortfolioSummary` (equity, buying power, and `dayChange` = equity vs
+  previous close `last_equity`), `Position[]`, and `PortfolioHistory` (equity series;
+  leading pre-funding zeros dropped). Cached ~5s (account/positions) / ~30s (history).
+  See ADR-017.
+- **`marketData.fetchPortfolioSummary()` / `fetchPositions()` / `fetchPortfolioHistory(range)`**
+  are thin `/api/*` calls.
+- **`usePortfolioStore`** holds `summary` (drives the Watchlist StatCards via `load()`),
+  `positions` (via `loadPositions()`), and `history` (via `loadHistory(range)`), and derives
+  allocation slices + open-P/L totals. The **Portfolio page** (`PortfolioView`) renders an
+  SVG `AllocationDonut`, a `PortfolioChart` (lightweight-charts area) with range tabs, and a
+  holdings `DataTable`.
 
 ## External integration: why a backend-for-frontend
 

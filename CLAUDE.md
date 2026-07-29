@@ -56,7 +56,7 @@ src/
 ├── components/   layout/ (shell, SymbolSearch), common/ (PriceTag, Sparkline, StatCard, LivePrice), feature dirs
 ├── views/        route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
 ├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, useChartStore, usePortfolioStore, …)
-├── services/     data access layer: marketData.ts (thin /api/* client: search + quotes + candles + account/positions), marketStream.ts (Finnhub WebSocket: live trades)
+├── services/     data access layer: marketData.ts (thin /api/* client: search + quotes + candles + account/positions/history), marketStream.ts (Finnhub WebSocket: live trades)
 ├── composables/  useBreakpoint, formatters, …
 ├── theme/        preset.ts — customized PrimeVue Aura preset
 ├── types/        shared TS types
@@ -165,9 +165,14 @@ Phase 7 (Alpaca account + positions) — done, read-only: `server/alpaca.ts` als
 Alpaca's **Trading** host (`paper-api.alpaca.markets`, `ALPACA_TRADING_URL`) via a shared
 `alpacaRequest()` and serves `/api/account` + `/api/positions`. The Watchlist StatCards now
 show **real** equity / buying power / day P/L (mock `fetchPortfolioSummary` deleted);
-`usePortfolioStore` also exposes `positions` + `loadPositions()` for the Phase 8 page. Same
-key/secret as candles, two hosts. No order placement yet (ADR-017).
+`usePortfolioStore` also exposes `positions` + `loadPositions()`. Same key/secret as candles,
+two hosts. No order placement yet (ADR-017).
 
-**Next:** Portfolio page on real data (Phase 8), Alpaca paper trading/orders (Phase 9),
-Markets & News (Phase 10); plus the deferred WebSocket-behind-BFF item. See
-`docs/06-roadmap.md` for authoritative status.
+Phase 8 (Portfolio page) — done: `PortfolioView` renders a summary header (total value +
+open P/L), an SVG `AllocationDonut` (holdings by market value + cash), a `PortfolioChart`
+(lightweight-charts area) with 1W–ALL range tabs backed by `/api/portfolio/history`
+(`fetchPortfolioHistory` → Alpaca `GET /v2/account/portfolio/history`), and a holdings
+`DataTable`. Allocation slices + open-P/L totals are derived in `usePortfolioStore`.
+
+**Next:** Alpaca paper trading/orders (Phase 9), Markets & News (Phase 10); plus the
+deferred WebSocket-behind-BFF item. See `docs/06-roadmap.md` for authoritative status.

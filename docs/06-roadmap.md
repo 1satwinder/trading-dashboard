@@ -126,14 +126,18 @@ See `04-architecture.md` for the data-source evolution.
       buying power / day P/L. `fetchPositions` + `usePortfolioStore.loadPositions()` are
       ready for the Phase 8 page.)_
 - [x] Single shared paper account, no user auth (ADR-012).
-- [ ] _Deferred to Phase 8:_ portfolio history endpoint (performance chart).
+- [x] _Done in Phase 8:_ portfolio history endpoint (performance chart) — `/api/portfolio/history`.
 
 ## Phase 8 — Portfolio
 
-> Split out from the old Chart phase. Now built directly on the **real** Alpaca account +
+> Split out from the old Chart phase. Built directly on the **real** Alpaca account +
 > positions from Phase 7 — no mock detour.
 
-- [ ] Portfolio: allocation donut, holdings table, performance chart (on Alpaca positions).
+- [x] Portfolio: allocation donut, holdings table, performance chart (on Alpaca positions).
+      _(`PortfolioView` = summary header (total value + open P/L), an SVG `AllocationDonut`
+      (holdings by market value + cash), a `PortfolioChart` (lightweight-charts area) with
+      1W–ALL range tabs backed by `/api/portfolio/history`, and a holdings `DataTable`.
+      Allocation/totals are derived in `usePortfolioStore`. See ADR-017.)_
 
 ## Phase 9 — Alpaca paper trading (orders)
 

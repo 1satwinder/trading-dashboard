@@ -72,6 +72,25 @@ export interface Position {
   dayChangePercent: number
 }
 
+/** Selectable ranges for the portfolio performance chart. */
+export type PortfolioHistoryRange = '1W' | '1M' | '3M' | '1Y' | 'ALL'
+
+/** One equity data point in the portfolio history series (time in epoch seconds). */
+export interface PortfolioHistoryPoint {
+  time: number
+  value: number
+}
+
+/**
+ * Equity-over-time for the performance chart, derived from Alpaca's portfolio
+ * history. `baseValue` is the equity at the start of the range (for total-return).
+ */
+export interface PortfolioHistory {
+  range: PortfolioHistoryRange
+  baseValue: number
+  points: PortfolioHistoryPoint[]
+}
+
 /** A saved watchlist entry (persisted); quotes are fetched on top of these. */
 export interface WatchlistEntry {
   symbol: string

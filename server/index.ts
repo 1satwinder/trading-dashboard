@@ -1,10 +1,10 @@
 import { config } from 'dotenv'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
-import type { ChartTimeframeId } from '../src/types/market'
+import type { ChartTimeframeId, PortfolioHistoryRange } from '../src/types/market'
 import { ProviderError } from './errors'
 import { fetchQuotes, searchSymbols } from './finnhub'
-import { fetchAccount, fetchBars, fetchPositions } from './alpaca'
+import { fetchAccount, fetchBars, fetchPortfolioHistory, fetchPositions } from './alpaca'
 
 // Local dev only: load secrets from .env.local. In production (serverless),
 // env vars are injected by the platform and this file won't exist.
@@ -98,6 +98,27 @@ app.get('/api/positions', async (c) => {
   } catch (err) {
     const { status, body } = fail(err)
     return c.json(body, status as 429 | 500 | 502)
+  }
+})
+
+const HISTORY_RANGES: ReadonlySet<string> = new Set<PortfolioHistoryRange>([
+  '1W',
+  '1M',
+  '3M',
+  '1Y',
+  'ALL',
+])
+
+app.get('/api/portfolio/history', async (c) => {
+  const range = (c.req.query('range') ?? '1M').trim().toUpperCase()
+  if (!HISTORY_RANGES.has(range)) {
+    return c.json({ error: `Unknown "range": ${range}.` }, 400)
+  }
+  try {
+    return c.json(await fetchPortfolioHistory(range as PortfolioHistoryRange))
+  } catch (err) {
+    const { status, body } = fail(err)
+    return c.json(body, status as 400 | 429 | 500 | 502)
   }
 })
 

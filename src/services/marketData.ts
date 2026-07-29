@@ -2,6 +2,8 @@ import type {
   Candle,
   ChartTimeframe,
   ChartTimeframeId,
+  PortfolioHistory,
+  PortfolioHistoryRange,
   PortfolioSummary,
   Position,
   Quote,
@@ -12,12 +14,11 @@ import type {
 /**
  * Market-data service — the single data-access boundary (docs/04-architecture.md).
  *
- * Symbol search + quotes + chart candles now go through the **BFF** at `/api/*`
- * (Phase 6), which owns the provider keys server-side (Finnhub for search/quotes,
- * Alpaca for candles). This file stays the seam: stores/components call these
- * functions and don't care where the data comes from. Portfolio metrics stay mock
- * until Alpaca account/positions (Phase 7). The live WebSocket remains
- * frontend-direct (see `marketStream.ts` + ADR-015).
+ * Symbol search + quotes + candles + portfolio (account, positions, history) all go
+ * through the **BFF** at `/api/*`, which owns the provider keys server-side (Finnhub
+ * for search/quotes, Alpaca for candles + the paper Trading API). This file stays the
+ * seam: stores/components call these functions and don't care where the data comes
+ * from. The live WebSocket remains frontend-direct (see `marketStream.ts` + ADR-015).
  */
 
 class MarketDataError extends Error {}
@@ -110,4 +111,9 @@ export function fetchPortfolioSummary(): Promise<PortfolioSummary> {
 /** Open holdings, mapped from Alpaca positions server-side. */
 export function fetchPositions(): Promise<Position[]> {
   return api<Position[]>('/api/positions')
+}
+
+/** Equity-over-time for the performance chart, for the given range. */
+export function fetchPortfolioHistory(range: PortfolioHistoryRange): Promise<PortfolioHistory> {
+  return api<PortfolioHistory>(`/api/portfolio/history?range=${encodeURIComponent(range)}`)
 }

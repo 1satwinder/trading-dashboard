@@ -1,4 +1,11 @@
-import type { Candle, ChartTimeframeId, PortfolioSummary, Position } from '../src/types/market'
+import type {
+  Candle,
+  ChartTimeframeId,
+  PortfolioHistory,
+  PortfolioHistoryRange,
+  PortfolioSummary,
+  Position,
+} from '../src/types/market'
 import { ProviderError } from './errors'
 import { cached } from './cache'
 
@@ -212,4 +219,52 @@ function toPosition(p: AlpacaPosition): Position {
     dayChange: num(p.unrealized_intraday_pl),
     dayChangePercent: num(p.unrealized_intraday_plpc) * 100,
   }
+}
+
+// ---- Portfolio history (Trading API — performance chart, Phase 8) ----------
+
+const HISTORY_TTL = 30_000
+
+/** Map a UI range to Alpaca's `period` + `timeframe` query params. */
+const HISTORY_PARAMS: Record<PortfolioHistoryRange, { period: string; timeframe: string }> = {
+  '1W': { period: '1W', timeframe: '1D' },
+  '1M': { period: '1M', timeframe: '1D' },
+  '3M': { period: '3M', timeframe: '1D' },
+  '1Y': { period: '1A', timeframe: '1D' },
+  ALL: { period: 'all', timeframe: '1D' },
+}
+
+/** Alpaca's portfolio-history response (parallel arrays). */
+interface AlpacaPortfolioHistory {
+  timestamp: number[]
+  equity: number[]
+  base_value: number
+}
+
+/**
+ * Fetch equity-over-time for the performance chart. Leading zero-equity points
+ * (before the account was funded) are dropped so the line starts at real money.
+ */
+export function fetchPortfolioHistory(range: PortfolioHistoryRange): Promise<PortfolioHistory> {
+  const { period, timeframe } = HISTORY_PARAMS[range]
+  return cached(`history:${range}`, HISTORY_TTL, async () => {
+    const url = new URL(`${ALPACA_TRADING_URL}/v2/account/portfolio/history`)
+    url.searchParams.set('period', period)
+    url.searchParams.set('timeframe', timeframe)
+
+    const data = await alpacaRequest<AlpacaPortfolioHistory>(url)
+    const times = data.timestamp ?? []
+    const equity = data.equity ?? []
+
+    const all = times.map((time, i) => ({ time, value: num(equity[i]) }))
+    // Drop the pre-funding flat-zero prefix so the line starts at real money.
+    const start = all.findIndex((p) => p.value > 0)
+    const points = start === -1 ? [] : all.slice(start)
+
+    return {
+      range,
+      baseValue: points[0]?.value ?? num(data.base_value),
+      points,
+    }
+  })
 }

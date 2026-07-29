@@ -204,10 +204,14 @@ decision is made. Keep them short.
   new `fetchPositions` hits `/api/positions`; `usePortfolioStore` gains `positions` +
   `loadPositions()`. The existing Watchlist StatCards become real with no UI change.
 - **Consequences:** Portfolio metrics are real and keys stay server-side; the Portfolio page
-  (Phase 8) can build directly on `positions`. `dayChange` follows Alpaca's `last_equity`
-  (previous trading day 16:00 ET), so it can read 0 outside market hours. **Deferred:**
-  portfolio history (Phase 8 performance chart), place/cancel + close-position (Phase 9),
-  and account configurations (not needed now).
+  (Phase 8) builds directly on `positions`. `dayChange` follows Alpaca's `last_equity`
+  (previous trading day 16:00 ET), so it can read 0 outside market hours.
+- **Follow-up (Phase 8):** added `GET /api/portfolio/history` → `fetchPortfolioHistory(range)`
+  (`GET /v2/account/portfolio/history`), mapping the parallel `timestamp`/`equity` arrays to a
+  `PortfolioHistory` series for the performance chart. A UI range (1W–ALL) maps to Alpaca's
+  `period`/`timeframe`; leading pre-funding zero-equity points are dropped so the line starts
+  at real money; cached ~30s. **Still deferred:** place/cancel + close-position (Phase 9) and
+  account configurations (not needed now).
 
 ---
 
