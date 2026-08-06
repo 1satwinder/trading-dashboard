@@ -1,7 +1,8 @@
-// TSConfig for the backend-for-frontend (BFF) in `server/`, run via tsx in dev.
+// TSConfig for the backend-for-frontend (BFF) in `server/` (run via tsx in dev) and
+// its Netlify Functions entry point in `netlify/` (production).
 {
   "extends": "@tsconfig/node24/tsconfig.json",
-  "include": ["server/**/*"],
+  "include": ["server/**/*", "netlify/**/*"],
   "compilerOptions": {
     "module": "preserve",
     "moduleResolution": "bundler",

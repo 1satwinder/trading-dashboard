@@ -1,0 +1,26 @@
+# Netlify build/deploy config — see docs/06-roadmap.md Phase 12 and ADR-021.
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  # Matches the "engines" field in package.json.
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Same-origin BFF: the browser calls /api/* and Netlify routes it to the
+# Hono app in netlify/functions/api.ts (mirrors the Vite dev proxy).
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# SPA fallback: src/router/index.ts uses createWebHistory, so deep links
+# (e.g. /chart/AAPL) must resolve to index.html and let Vue Router take over.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
