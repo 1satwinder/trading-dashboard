@@ -53,31 +53,35 @@ show stale errors right after installing a package).
 
 ```
 src/
-├── components/   layout/ (shell, SymbolSearch), common/ (PriceTag, Sparkline, StatCard, LivePrice), feature dirs
-├── views/        route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
-├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, useChartStore, usePortfolioStore, …)
-├── services/     data access layer: marketData.ts (thin /api/* client: search + quotes + candles + account/positions/history), marketStream.ts (Finnhub WebSocket: live trades)
-├── composables/  useBreakpoint, formatters, …
+├── components/   layout/ (shell, SymbolSearch), common/ (PriceTag, Sparkline, StatCard, LivePrice), feature dirs (chart/, orders/, portfolio/, markets/)
+├── views/        route-level pages (Watchlist, Portfolio, Orders, Chart, Markets, Settings)
+├── stores/       Pinia stores (useUiStore, useWatchlistStore, useSearchStore, useChartStore, usePortfolioStore, useOrdersStore, useMarketsStore, …)
+├── services/     data access layer: marketData.ts (thin /api/* client: search + quotes + candles + markets + account/positions/history + orders), marketStream.ts (Finnhub WebSocket: live trades)
+├── composables/  useBreakpoint (formatters live in utils/format.ts)
 ├── theme/        preset.ts — customized PrimeVue Aura preset
 ├── types/        shared TS types
 ├── router/       Vue Router config
 └── main.ts, App.vue
 
-server/           # backend-for-frontend (Hono) — Phase 6
-├── index.ts      # Hono app + node-server: /api/health, /api/search, /api/quotes, /api/candles
-├── finnhub.ts    # server-side Finnhub client + mapping (search + quotes; owns FINNHUB_API_KEY)
-├── alpaca.ts     # server-side Alpaca client (chart candles, free iex feed; owns ALPACA_* keys)
-├── cache.ts      # shared in-memory TTL cache
-└── errors.ts     # shared ProviderError (status + message)
+server/             # backend-for-frontend (Hono) — Phase 6
+├── index.ts        # Hono app + node-server: /api/health, /api/search, /api/quotes, /api/candles,
+│                   #   /api/markets/*, /api/account, /api/positions, /api/portfolio/history, /api/orders
+├── finnhub.ts      # server-side Finnhub client + mapping (search + quotes; owns FINNHUB_API_KEY)
+├── alpacaClient.ts # shared Alpaca transport: hosts, credentials, alpacaRequest(); owns ALPACA_* keys
+├── alpaca.ts       # chart candles (data host) + account/positions/history/orders (trading host)
+├── markets.ts      # Markets page: ETF index proxies, screener + filtering, sectors, clock (ADR-020)
+├── cache.ts        # shared in-memory TTL cache
+└── errors.ts       # shared ProviderError (status + message)
 ```
 
 Data flow: **View → Pinia store → service layer → BFF (`/api/*`) → provider**.
 Keep all provider/backend details behind `services/` (client) + `server/` (BFF) so the
-data source can evolve without touching views. Search + quotes (Finnhub) and chart candles
-(Alpaca IEX) now go through the **Hono BFF** (`server/`), which owns the provider keys; Vite
-proxies `/api` → the BFF in dev. External providers: **Alpaca** (chart candles now +
-paper trading later, server-side only) + **Finnhub** (symbol search/quotes/news + live WS).
-Single shared paper account, no auth. See ADR-009/010/012/015/016.
+data source can evolve without touching views. Search + quotes (Finnhub), chart candles and
+the Markets page (Alpaca IEX) all go through the **Hono BFF** (`server/`), which owns the
+provider keys; Vite proxies `/api` → the BFF in dev. External providers: **Alpaca** (chart
+candles, markets, and account/positions/history/paper orders — server-side only) +
+**Finnhub** (symbol search/quotes + live WS). Single shared paper account, no auth.
+See ADR-009/010/012/015/016/020.
 
 Real-time: the watchlist streams live prices over **one shared Finnhub WebSocket**
 (`marketStream`). `useWatchlistStore` owns the `connect()`/`disconnect()` lifecycle,
@@ -118,6 +122,11 @@ Numbers (prices, P/L): use Tailwind's `tabular-nums` so digits don't jitter.
 - The Inter family name is `'Inter Variable'` (listed first in `base.css`).
 - CSS-only side-effect imports use explicit `.css` paths (e.g.
   `@fontsource-variable/inter/index.css`) to satisfy TypeScript.
+- **Don't bind `:loading` on `DataTable` for fast/cached fetches.** BFF responses are cached
+  and near-instant; a `true → false` flip within a few ms can orphan PrimeVue's overlay
+  leave-transition, leaving a `p-datatable-mask` with `pointer-events: auto` permanently on
+  top of the table (it swallows row clicks). `OrdersView` shows a `ProgressSpinner` for the
+  initial load instead, and background polling refreshes silently.
 
 ## Conventions
 
@@ -174,5 +183,32 @@ open P/L), an SVG `AllocationDonut` (holdings by market value + cash), a `Portfo
 (`fetchPortfolioHistory` → Alpaca `GET /v2/account/portfolio/history`), and a holdings
 `DataTable`. Allocation slices + open-P/L totals are derived in `usePortfolioStore`.
 
-**Next:** Alpaca paper trading/orders (Phase 9), Markets & News (Phase 10); plus the
-deferred WebSocket-behind-BFF item. See `docs/06-roadmap.md` for authoritative status.
+Phase 9 (Alpaca paper trading) — done: the BFF serves `POST /api/orders`, `GET /api/orders`,
+`GET /api/orders/:id` and `DELETE /api/orders/:id` (its first **write** path).
+`alpacaRequest()` is write-capable, Alpaca's `403`/`422` messages pass through to the UI with
+their status, and writes `invalidate()` the account/positions/history/orders caches so fills
+land immediately. `OrderPanel` gained a time-in-force select + review-and-confirm dialog and
+submits through `useOrdersStore`, polling every ~5s while any order is working (no
+trade-updates stream — ADR-018). Note the BFF is unauthenticated, so deploying it needs a
+guard.
+
+Orders live on their **own page** (`/orders`, `OrdersView` + presentational `OrdersTable`)
+with All/Open/Filled/Canceled filter tabs — they started as a card under Holdings, but two
+stacked tables made Portfolio cluttered. **News was dropped** (nav item, route, and stub view
+deleted); Orders took its nav slot, so Phase 10 is Markets only. See ADR-019.
+
+Phase 10 (Markets) — done, and **Alpaca-only**: Finnhub's free tier is US-only with no
+screener, so it serves none of this page. `server/markets.ts` + `/api/markets/{clock,indices,
+movers,sectors}` back a `MarketsView` of a market-status pill, five `IndexCard`s, a US/Canada
+`SelectButton`, gainers/losers/most-active `MoversTable`s and a `SectorHeatmap`;
+`useMarketsStore` refreshes every 60s **only while the market is open**. Two gaps in free data
+are approximated on purpose (ADR-020): **indices are ETF proxies** (SPY/QQQ/DIA/IWM/EWC) since
+index levels aren't quotable, and **Canada is NYSE dual-listings** since no free feed covers
+the TSX — which also keeps every row tradable in the paper account. `MarketMovers.source`
+marks curated lists so they never read as a full-market scan. Alpaca's raw screener is topped
+by penny stocks, warrants and geared single-stock ETFs, so movers are over-fetched (`top=50`)
+and filtered on price, move size and a 24h-cached `/v2/assets` lookup. Shared Alpaca transport
+now lives in `server/alpacaClient.ts`.
+
+**Next:** Polish (Phase 11), Deploy (Phase 12); plus the deferred WebSocket-behind-BFF item.
+See `docs/06-roadmap.md` for authoritative status.

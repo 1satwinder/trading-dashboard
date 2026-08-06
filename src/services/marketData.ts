@@ -2,11 +2,19 @@ import type {
   Candle,
   ChartTimeframe,
   ChartTimeframeId,
+  MarketClock,
+  MarketIndex,
+  MarketMovers,
+  MarketRegion,
+  Order,
+  OrderRequest,
+  OrderStatusFilter,
   PortfolioHistory,
   PortfolioHistoryRange,
   PortfolioSummary,
   Position,
   Quote,
+  SectorPerformance,
   SymbolSearchResult,
   WatchlistEntry,
 } from '@/types/market'
@@ -14,20 +22,32 @@ import type {
 /**
  * Market-data service — the single data-access boundary (docs/04-architecture.md).
  *
- * Symbol search + quotes + candles + portfolio (account, positions, history) all go
- * through the **BFF** at `/api/*`, which owns the provider keys server-side (Finnhub
- * for search/quotes, Alpaca for candles + the paper Trading API). This file stays the
+ * Symbol search + quotes + candles + markets + portfolio (account, positions, history)
+ * all go through the **BFF** at `/api/*`, which owns the provider keys server-side
+ * (Finnhub for search/quotes, Alpaca for candles, markets and the paper Trading API).
+ * This file stays the
  * seam: stores/components call these functions and don't care where the data comes
  * from. The live WebSocket remains frontend-direct (see `marketStream.ts` + ADR-015).
  */
 
 class MarketDataError extends Error {}
 
-/** Fetch JSON from the BFF, mapping failures to friendly messages for the UI. */
-async function api<T>(path: string): Promise<T> {
+/**
+ * Fetch JSON from the BFF, mapping failures to friendly messages for the UI.
+ *
+ * The BFF's `{ error }` message is preferred when present — order rejections
+ * ("insufficient buying power") only make sense with the upstream reason.
+ */
+async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const { method = 'GET', body } = init
+
   let res: Response
   try {
-    res = await fetch(path)
+    res = await fetch(path, {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
   } catch {
     throw new MarketDataError('Network error contacting the market-data service.')
   }
@@ -36,9 +56,23 @@ async function api<T>(path: string): Promise<T> {
     throw new MarketDataError('Rate limit reached. Please wait a moment and try again.')
   }
   if (!res.ok) {
-    throw new MarketDataError(`Market-data request failed (${res.status}).`)
+    throw new MarketDataError(await errorMessage(res))
   }
+
+  // 204 No Content (e.g. cancelling an order).
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
+}
+
+/** Read the BFF's error message, falling back to the status code. */
+async function errorMessage(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string }
+    if (body?.error) return body.error
+  } catch {
+    // Non-JSON body — fall through.
+  }
+  return `Market-data request failed (${res.status}).`
 }
 
 // ---- Symbol search ---------------------------------------------------------
@@ -116,4 +150,54 @@ export function fetchPositions(): Promise<Position[]> {
 /** Equity-over-time for the performance chart, for the given range. */
 export function fetchPortfolioHistory(range: PortfolioHistoryRange): Promise<PortfolioHistory> {
   return api<PortfolioHistory>(`/api/portfolio/history?range=${encodeURIComponent(range)}`)
+}
+
+// ---- Markets (Phase 10 — ADR-020) ------------------------------------------
+
+/*
+ * The BFF owns which symbols stand in for each benchmark and how movers are
+ * ranked and filtered, so these are plain pass-throughs. See `server/markets.ts`
+ * for why indices are ETF proxies and Canada is US-listed.
+ */
+
+/** US session state, for the status pill (and to decide whether to poll). */
+export function fetchMarketClock(): Promise<MarketClock> {
+  return api<MarketClock>('/api/markets/clock')
+}
+
+/** Benchmark cards, priced via ETF proxies, each with a sparkline. */
+export function fetchMarketIndices(): Promise<MarketIndex[]> {
+  return api<MarketIndex[]>('/api/markets/indices')
+}
+
+/** Gainers, losers and most-active for a region, in one call. */
+export function fetchMovers(region: MarketRegion): Promise<MarketMovers> {
+  return api<MarketMovers>(`/api/markets/movers?region=${encodeURIComponent(region)}`)
+}
+
+/** Sector performance tiles for the heatmap. */
+export function fetchSectors(region: MarketRegion): Promise<SectorPerformance[]> {
+  return api<SectorPerformance[]>(`/api/markets/sectors?region=${encodeURIComponent(region)}`)
+}
+
+// ---- Orders (paper trading; placement is server-side only) ------------------
+
+/** Submit a paper order. Rejections surface Alpaca's reason as the error message. */
+export function placeOrder(input: OrderRequest): Promise<Order> {
+  return api<Order>('/api/orders', { method: 'POST', body: input })
+}
+
+/** List orders, newest first. */
+export function fetchOrders(status: OrderStatusFilter = 'all', limit = 50): Promise<Order[]> {
+  return api<Order[]>(`/api/orders?status=${status}&limit=${limit}`)
+}
+
+/** Fetch a single order by id. */
+export function fetchOrder(id: string): Promise<Order> {
+  return api<Order>(`/api/orders/${encodeURIComponent(id)}`)
+}
+
+/** Cancel an open order. */
+export function cancelOrder(id: string): Promise<void> {
+  return api<void>(`/api/orders/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }

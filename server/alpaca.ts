@@ -1,27 +1,35 @@
 import type {
   Candle,
   ChartTimeframeId,
+  Order,
+  OrderRequest,
+  OrderSide,
+  OrderStatus,
+  OrderTimeInForce,
+  OrderType,
   PortfolioHistory,
   PortfolioHistoryRange,
   PortfolioSummary,
   Position,
 } from '../src/types/market'
 import { ProviderError } from './errors'
-import { cached } from './cache'
+import { cached, invalidate } from './cache'
+import {
+  ALPACA_DATA_URL,
+  ALPACA_TRADING_URL,
+  alpacaRequest,
+  num,
+  optionalNum,
+} from './alpacaClient'
 
 /**
- * Server-side Alpaca client for the BFF.
+ * Server-side Alpaca client for the BFF: chart candles (`/api/candles`, ADR-016)
+ * from the Market Data host, plus the paper Trading API — account + positions
+ * (ADR-017), portfolio history (Phase 8) and orders (ADR-018).
  *
- * Two Alpaca APIs live on different hosts:
- *   - **Market Data** (`data.alpaca.markets`) → chart candles (`/api/candles`, ADR-016).
- *   - **Trading** (`paper-api.alpaca.markets`) → account + positions (`/api/account`,
- *     `/api/positions`, read-only in Phase 7 — ADR-017).
- * Both use the same `APCA-API-KEY-ID` / `APCA-API-SECRET-KEY` headers, which live only
- * here (server-side); the browser only ever sees our `/api/*`.
+ * The shared transport (hosts, credentials, `alpacaRequest`) lives in
+ * `alpacaClient.ts`, which `markets.ts` also builds on.
  */
-
-const ALPACA_DATA_URL = process.env.ALPACA_DATA_URL ?? 'https://data.alpaca.markets'
-const ALPACA_TRADING_URL = process.env.ALPACA_TRADING_URL ?? 'https://paper-api.alpaca.markets'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -46,49 +54,6 @@ const BAR_SPECS: Record<ChartTimeframeId, BarSpec> = {
   '3M': { timeframe: '1Day', limit: 66, lookbackMs: 130 * DAY_MS, ttlMs: 5 * 60_000 },
   '1Y': { timeframe: '1Day', limit: 252, lookbackMs: 400 * DAY_MS, ttlMs: 5 * 60_000 },
   '5Y': { timeframe: '1Week', limit: 260, lookbackMs: 6 * 365 * DAY_MS, ttlMs: 5 * 60_000 },
-}
-
-function credentials(): { keyId: string; secretKey: string } {
-  const keyId = process.env.ALPACA_API_KEY_ID
-  const secretKey = process.env.ALPACA_API_SECRET_KEY
-  if (!keyId || !secretKey) {
-    throw new ProviderError(
-      500,
-      'Server is missing ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY (see .env.example).',
-    )
-  }
-  return { keyId, secretKey }
-}
-
-/** GET an Alpaca URL with auth headers, mapping failures to `ProviderError`. */
-async function alpacaRequest<T>(url: string | URL): Promise<T> {
-  const { keyId, secretKey } = credentials()
-
-  let res: Response
-  try {
-    res = await fetch(url, {
-      headers: {
-        'APCA-API-KEY-ID': keyId,
-        'APCA-API-SECRET-KEY': secretKey,
-      },
-    })
-  } catch {
-    throw new ProviderError(502, 'Upstream network error contacting Alpaca.')
-  }
-
-  if (res.status === 429) throw new ProviderError(429, 'Alpaca rate limit reached.')
-  if (res.status === 401 || res.status === 403) {
-    throw new ProviderError(502, 'Alpaca rejected the request — check ALPACA API credentials.')
-  }
-  if (!res.ok) throw new ProviderError(502, `Alpaca request failed (${res.status}).`)
-
-  return res.json() as Promise<T>
-}
-
-/** Parse an Alpaca numeric string (they're returned as strings) to a number. */
-function num(value: string | number | null | undefined): number {
-  const n = typeof value === 'string' ? Number(value) : (value ?? 0)
-  return Number.isFinite(n) ? n : 0
 }
 
 /** One bar as returned by Alpaca's stock bars API. */
@@ -267,4 +232,100 @@ export function fetchPortfolioHistory(range: PortfolioHistoryRange): Promise<Por
       points,
     }
   })
+}
+
+// ---- Orders (Trading API — paper trading writes, Phase 9) ------------------
+
+const ORDERS_TTL = 2_000
+
+/** Cache keys that a fill can change, dropped after every write. */
+const WRITE_INVALIDATES = ['orders:', 'account', 'positions', 'history:']
+
+/** One order as returned by Alpaca (numeric fields are strings). */
+interface AlpacaOrder {
+  id: string
+  symbol: string
+  side: string
+  type: string
+  time_in_force: string
+  status: string
+  qty: string | null
+  filled_qty: string | null
+  limit_price: string | null
+  stop_price: string | null
+  filled_avg_price: string | null
+  submitted_at: string | null
+}
+
+function toOrder(o: AlpacaOrder): Order {
+  return {
+    id: o.id,
+    symbol: o.symbol,
+    side: o.side as OrderSide,
+    type: o.type as OrderType,
+    timeInForce: o.time_in_force as OrderTimeInForce,
+    status: o.status as OrderStatus,
+    qty: num(o.qty),
+    filledQty: num(o.filled_qty),
+    limitPrice: optionalNum(o.limit_price),
+    stopPrice: optionalNum(o.stop_price),
+    filledAvgPrice: optionalNum(o.filled_avg_price),
+    submittedAt: o.submitted_at ?? '',
+  }
+}
+
+/**
+ * Place a paper order. Alpaca expects every number as a string, and only accepts
+ * `limit_price`/`stop_price` for the matching order type.
+ */
+export async function placeOrder(input: OrderRequest): Promise<Order> {
+  const body: Record<string, string> = {
+    symbol: input.symbol,
+    qty: String(input.qty),
+    side: input.side,
+    type: input.type,
+    time_in_force: input.timeInForce,
+  }
+  if (input.type === 'limit' && input.limitPrice !== undefined) {
+    body.limit_price = String(input.limitPrice)
+  }
+  if (input.type === 'stop' && input.stopPrice !== undefined) {
+    body.stop_price = String(input.stopPrice)
+  }
+
+  const order = await alpacaRequest<AlpacaOrder>(`${ALPACA_TRADING_URL}/v2/orders`, {
+    method: 'POST',
+    body,
+  })
+  invalidate(...WRITE_INVALIDATES)
+  return toOrder(order)
+}
+
+/** List orders, newest first. `status` is Alpaca's `open` | `closed` | `all`. */
+export function fetchOrders(status: string, limit: number): Promise<Order[]> {
+  return cached(`orders:${status}:${limit}`, ORDERS_TTL, async () => {
+    const url = new URL(`${ALPACA_TRADING_URL}/v2/orders`)
+    url.searchParams.set('status', status)
+    url.searchParams.set('limit', String(limit))
+    url.searchParams.set('direction', 'desc')
+
+    const orders = await alpacaRequest<AlpacaOrder[]>(url)
+    return (orders ?? []).map(toOrder)
+  })
+}
+
+/** Fetch a single order by id (used to poll one order's status). */
+export async function fetchOrder(id: string): Promise<Order> {
+  const order = await alpacaRequest<AlpacaOrder>(
+    `${ALPACA_TRADING_URL}/v2/orders/${encodeURIComponent(id)}`,
+  )
+  return toOrder(order)
+}
+
+/** Cancel an open order (Alpaca replies `204`; `422` if it's no longer cancelable). */
+export async function cancelOrder(id: string): Promise<void> {
+  await alpacaRequest<void>(`${ALPACA_TRADING_URL}/v2/orders/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  invalidate(...WRITE_INVALIDATES)
 }

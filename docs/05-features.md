@@ -4,13 +4,18 @@
 
 | Page | Purpose | Key UI elements |
 | --- | --- | --- |
-| **Dashboard / Home** | At-a-glance overview | Portfolio value card, mini watchlist, market movers, news teaser |
+| **Dashboard / Home** | At-a-glance overview | Portfolio value card, mini watchlist, market movers |
 | **Watchlist** | Symbols the user follows | Sortable table (desktop) / cards (mobile): symbol, price, % change, sparkline |
 | **Portfolio** | Holdings & performance | Total value + day change, allocation donut, performance chart, holdings table, P/L |
-| **Chart** | Detailed view for one symbol | Candlestick chart, timeframe tabs (1D/1W/1M/1Y), order panel (simulated Buy/Sell), key stats |
-| **Markets** | Discover / browse | Index cards, top gainers/losers, sector heatmap |
-| **News** | Market news feed | Article cards, filter by symbol/category |
+| **Orders** | Paper order activity | Status filter tabs (All/Open/Filled/Canceled) with counts, orders table, cancel an open order |
+| **Chart** | Detailed view for one symbol | Candlestick chart, timeframe tabs (1D/1W/1M/1Y), order panel (real Alpaca **paper** Buy/Sell), key stats |
+| **Markets** | Discover / browse | Market-status pill, five index cards, US/Canada tabs, gainers / losers / most-active tables, sector heatmap |
 | **Settings** | Preferences | Theme toggle, display options |
+
+Orders live on their own page rather than as a second table under Holdings: holdings are a
+current-state snapshot, orders are a time-ordered activity log, and stacking two large
+tables made the Portfolio page read as cluttered (ADR-019). **News is out of scope** — see
+the same ADR.
 
 ## Key feature flows
 
@@ -18,8 +23,14 @@
   market-data provider's search endpoint; results link to the chart / add to watchlist.
 - **Watchlist** — add/remove searched symbols; persisted (interim `localStorage`,
   later backend + DB); live quotes from the provider.
-- **Paper trading** — from the chart/order panel, place a (paper) order via Alpaca
-  through the BFF; reflect order status and resulting positions in the portfolio.
+- **Paper trading** — from the chart's order panel, review and place a (paper) order via
+  Alpaca through the BFF; track status (and cancel) on the Orders page, with fills reflected
+  in the portfolio.
+- **Markets browsing** — benchmark cards, movers and sectors for the US or Canada, refreshing
+  while the market is open; any row or card opens that symbol's chart. No free feed covers
+  index levels or the TSX, so indices are **ETF proxies** (SPY/QQQ/DIA/IWM/EWC) and Canada is
+  Canadian large caps by their **NYSE listing** — which also keeps every row tradable in the
+  paper account. The UI labels both rather than implying otherwise (ADR-020).
 
 ## Global UI
 
@@ -36,11 +47,10 @@
 5. **Live market data** for the watchlist (real quotes).
 6. Portfolio page (allocation + holdings + P/L).
 7. Chart page (candlestick + timeframe) from real candle data.
-8. Markets page (indices + movers + sectors).
-9. News page.
-10. **Backend-for-frontend (BFF)**: hide keys, cache, proxy providers.
-11. **Alpaca paper trading**: order placement + status + positions via BFF.
-12. Settings + theme toggle (light theme variant).
+8. ~~Markets page (indices + movers + sectors).~~ ✅
+9. **Backend-for-frontend (BFF)**: hide keys, cache, proxy providers.
+10. **Alpaca paper trading**: order placement + status + positions via BFF.
+11. Settings + theme toggle (light theme variant).
 
 ## Open questions / decisions pending
 

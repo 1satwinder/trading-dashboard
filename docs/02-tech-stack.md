@@ -54,7 +54,7 @@ The app integrates two kinds of external service, plus (eventually) our own back
 > **Decided:** Finnhub (ADR-009). Chosen over Alpha Vantage (free tier ~25 req/day is
 > too tight) and Twelve Data.
 
-- **Finnhub** for symbol search (`/search`), quotes, and news; ~60 req/min free
+- **Finnhub** for symbol search (`/search`) and quotes; ~60 req/min free
   tier, and a trade **WebSocket** used for the live watchlist (see `marketStream` in
   `04-architecture.md`). Search + quotes are served through the BFF (ADR-015); the WS is
   still frontend-direct. Candles come from **Alpaca**, not Finnhub (its `/stock/candle`

@@ -6,11 +6,7 @@ import type {
   PortfolioSummary,
   Position,
 } from '@/types/market'
-import {
-  fetchPortfolioHistory,
-  fetchPortfolioSummary,
-  fetchPositions,
-} from '@/services/marketData'
+import { fetchPortfolioHistory, fetchPortfolioSummary, fetchPositions } from '@/services/marketData'
 
 /** A single allocation slice for the donut chart. */
 export interface AllocationSlice {
@@ -86,12 +82,8 @@ export const usePortfolioStore = defineStore('portfolio', () => {
 
   // ---- Derived metrics ------------------------------------------------------
 
-  const holdingsValue = computed(() =>
-    positions.value.reduce((sum, p) => sum + p.marketValue, 0),
-  )
-  const totalCostBasis = computed(() =>
-    positions.value.reduce((sum, p) => sum + p.costBasis, 0),
-  )
+  const holdingsValue = computed(() => positions.value.reduce((sum, p) => sum + p.marketValue, 0))
+  const totalCostBasis = computed(() => positions.value.reduce((sum, p) => sum + p.costBasis, 0))
   const totalUnrealizedPl = computed(() =>
     positions.value.reduce((sum, p) => sum + p.unrealizedPl, 0),
   )

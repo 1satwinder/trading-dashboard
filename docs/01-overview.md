@@ -30,7 +30,7 @@ into a **full-stack app** backed by real market data and a real paper-trading br
 
 ### Planned — full-stack
 
-- **Symbol search** and **live market data** (quotes, candles, movers, news).
+- **Symbol search** and **live market data** (quotes, candles, movers).
 - **Watchlist** persisted (interim: `localStorage`; later: backend + DB).
 - **Paper trading** via **Alpaca**: place orders, order status, positions, holdings.
 - Portfolio driven by real positions; interactive charts from real candle data.
@@ -39,6 +39,7 @@ into a **full-stack app** backed by real market data and a real paper-trading br
 
 - **Real money.** Trading is **paper only** (Alpaca paper account).
 - Options/crypto/advanced order types (may revisit later).
+- **A news feed** — dropped in favour of a dedicated Orders page (ADR-019).
 
 ## Data & backend approach (summary)
 

@@ -62,15 +62,8 @@ const arcs = computed(() => {
     </svg>
 
     <ul class="w-full space-y-2">
-      <li
-        v-for="slice in slices"
-        :key="slice.label"
-        class="flex items-center gap-2 text-sm"
-      >
-        <span
-          class="h-2.5 w-2.5 shrink-0 rounded-full"
-          :style="{ backgroundColor: slice.color }"
-        />
+      <li v-for="slice in slices" :key="slice.label" class="flex items-center gap-2 text-sm">
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ backgroundColor: slice.color }" />
         <span class="text-color">{{ slice.label }}</span>
         <span class="ml-auto font-medium tabular-nums text-muted-color">
           {{ slice.percent.toFixed(0) }}%

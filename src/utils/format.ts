@@ -37,3 +37,12 @@ const compactFmt = new Intl.NumberFormat('en-US', {
 export function formatCompact(value: number): string {
   return compactFmt.format(value)
 }
+
+const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+
+/** Clock time from an ISO timestamp, e.g. `9:30 AM`. Empty when unparseable. */
+export function formatTimeOfDay(iso: string): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : timeFmt.format(date)
+}

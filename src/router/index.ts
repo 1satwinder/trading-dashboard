@@ -15,6 +15,11 @@ const router = createRouter({
       component: () => import('@/views/PortfolioView.vue'),
     },
     {
+      path: '/orders',
+      name: 'orders',
+      component: () => import('@/views/OrdersView.vue'),
+    },
+    {
       path: '/chart/:symbol?',
       name: 'chart',
       component: () => import('@/views/ChartView.vue'),
@@ -23,11 +28,6 @@ const router = createRouter({
       path: '/markets',
       name: 'markets',
       component: () => import('@/views/MarketsView.vue'),
-    },
-    {
-      path: '/news',
-      name: 'news',
-      component: () => import('@/views/NewsView.vue'),
     },
     {
       path: '/settings',

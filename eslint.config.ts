@@ -26,6 +26,14 @@ export default defineConfigWithVueTs(
     files: ['src/**/__tests__/*'],
   },
 
+  {
+    // `Sparkline` is an established name across the docs and design system;
+    // renaming it purely to satisfy the two-word rule isn't worth the churn.
+    name: 'app/allow-single-word-sparkline',
+    files: ['src/components/common/Sparkline.vue'],
+    rules: { 'vue/multi-word-component-names': 'off' },
+  },
+
   ...pluginOxlint.buildFromOxlintConfigFile('.oxlintrc.json'),
 
   skipFormatting,

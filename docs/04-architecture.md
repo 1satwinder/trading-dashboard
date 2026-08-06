@@ -10,7 +10,7 @@
   (mock → frontend-direct → backend-for-frontend).
 - **Component-driven**: a responsive layout shell + reusable presentational components.
 - **Full-stack target**: a thin **backend-for-frontend (BFF)** integrates external
-  providers (Alpaca for trading, a market-data provider for quotes/search/news).
+  providers (Alpaca for trading, a market-data provider for quotes/search).
 
 ## Proposed folder structure
 
@@ -23,9 +23,9 @@ src/
 │   ├── watchlist/       # SymbolRow, SymbolCard
 │   ├── portfolio/       # AllocationDonut, HoldingsTable
 │   ├── chart/           # PriceChart, OrderPanel, TimeframeTabs
-│   ├── markets/         # IndexCard, MoversTable, SectorHeatmap
-│   └── news/            # NewsCard
-├── views/               # route-level pages (Watchlist, Portfolio, Chart, Markets, News, Settings)
+│   ├── orders/          # OrdersTable
+│   └── markets/         # IndexCard, MoversTable, SectorHeatmap
+├── views/               # route-level pages (Watchlist, Portfolio, Orders, Chart, Markets, Settings)
 ├── stores/              # Pinia stores
 ├── services/            # data-access boundary
 │   ├── marketData.ts    # REST: symbol search + quotes (mock → provider → BFF)
@@ -38,22 +38,35 @@ src/
 ```
 
 The backend-for-frontend lives outside `src/`, deployed alongside the SPA. As of
-Phase 7 it's a Hono app covering search + quotes + candles + account/positions:
+Phase 10 it's a Hono app covering search + quotes + candles + markets +
+account/positions/history + orders:
 
 ```
 server/                  # backend-for-frontend (BFF) — Hono
 ├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes,
-│                        #   /api/candles, /api/account, /api/positions, /api/portfolio/history
+│                        #   /api/candles, /api/markets/{clock,indices,movers,sectors},
+│                        #   /api/account, /api/positions, /api/portfolio/history,
+│                        #   /api/orders (GET + POST), /api/orders/:id (GET + DELETE)
 ├── finnhub.ts           # server-side Finnhub client + mapping (search + quotes; holds the REST key)
-├── alpaca.ts            # server-side Alpaca client: candles (data host) + account/positions/history (trading host)
-├── cache.ts             # shared in-memory TTL cache (search ~1h, quotes ~10s, candles ~30s–5m, account/positions ~5s, history ~30s)
+├── alpacaClient.ts      # shared Alpaca transport: hosts, credentials, alpacaRequest(), num()
+├── alpaca.ts            # candles (data host) + account/positions/history/orders (trading host)
+├── markets.ts           # Markets page: index proxies, screener + filtering, sectors, clock (ADR-020)
+├── cache.ts             # shared TTL cache (search ~1h, quotes ~10s, candles ~30s–5m, account/positions ~5s,
+│                        #   history ~30s, orders ~2s, markets ~30–60s, assets ~24h) + invalidate() after writes
 └── errors.ts            # shared ProviderError (status + message) for consistent /api responses
-#  later: Alpaca orders (place/cancel), /api/news
 ```
 
-Alpaca spans **two hosts**: market data (`data.alpaca.markets`) for candles and the
-Trading API (`paper-api.alpaca.markets`) for account + positions — same key/secret,
-different base URLs (`ALPACA_DATA_URL` / `ALPACA_TRADING_URL`).
+Orders are the only **write** path. Alpaca's `403` (insufficient buying power) and `422`
+(bad params) keep their status and message so the UI can show the real reason, and every
+write invalidates the account/positions/history/orders cache entries (ADR-018).
+
+Alpaca spans **two hosts**: market data (`data.alpaca.markets`) for candles, snapshots and
+screeners, and the Trading API (`paper-api.alpaca.markets`) for account, positions, orders,
+assets and the market clock — same key/secret, different base URLs (`ALPACA_DATA_URL` /
+`ALPACA_TRADING_URL`), shared by `alpaca.ts` and `markets.ts` through `alpacaClient.ts`.
+
+The **Markets** page is Alpaca-only: Finnhub's free tier is US-only and has no screener, so
+index cards use ETF proxies and Canada uses NYSE dual-listings (ADR-020).
 
 In dev, **Vite proxies `/api/*` → the BFF** (`vite.config.ts`, default `PORT` 8787),
 so the browser makes same-origin calls and never sees the provider keys.
@@ -65,9 +78,9 @@ so the browser makes same-origin calls and never sees the provider keys.
 | `/` | Dashboard/Watchlist | Default landing (decision: dedicated Home vs Watchlist) |
 | `/watchlist` | Watchlist | Followed symbols |
 | `/portfolio` | Portfolio | Holdings + allocation + performance |
+| `/orders` | Orders | Paper order activity, status filters, cancel |
 | `/chart/:symbol` | Chart | Single-symbol chart + order panel |
 | `/markets` | Markets | Indices, movers, sectors |
-| `/news` | News | Market news feed |
 | `/settings` | Settings | Theme, preferences |
 
 ## Pinia stores (initial)
@@ -78,8 +91,8 @@ so the browser makes same-origin calls and never sees the provider keys.
 | `useWatchlistStore` | Watchlist symbols + quotes (persisted; interim `localStorage`); owns the live-stream lifecycle and applies buffered trades |
 | `useSearchStore` | Symbol search query + results (guards against out-of-order responses) |
 | `usePortfolioStore` | Holdings, cash, derived P/L (mock → Alpaca positions) |
-| `useMarketStore` | Indices, movers, sector data |
-| `useTradingStore` | Order tickets, placement, and order status (via BFF) — later |
+| `useMarketsStore` | Index cards, movers and sectors per region, plus the market clock (polls only while open) |
+| `useOrdersStore` | Order placement, cancellation, and status polling (via BFF) |
 
 > A `useUiStore` for layout state is what makes the responsive sidebar ↔ bottom-nav
 > toggle clean and centralized.
@@ -151,20 +164,26 @@ marketStream (one shared wss://ws.finnhub.io socket)
 > Trades only flow during market hours; outside them the socket still connects ("Live")
 > but prices stay static until the next session.
 
-## Portfolio (Alpaca account + positions)
+## Portfolio + trading (Alpaca Trading API)
 
-Account metrics, holdings, and equity history come from Alpaca's **Trading API**, kept
-server-side behind the BFF (read-only in Phase 7–8; orders arrive in Phase 9):
+Account metrics, holdings, equity history, and orders all come from Alpaca's **Trading
+API**, kept server-side behind the BFF. Reads landed in Phases 7–8; order placement and
+cancellation (the only writes) landed in Phase 9:
 
 ```mermaid
 flowchart LR
   Watch["Watchlist header (StatCards)"] --> Port["usePortfolioStore"]
   PView["PortfolioView (donut, chart, holdings)"] --> Port
+  Panel["OrderPanel (review dialog)"] --> OStore["useOrdersStore"]
+  OView["OrdersView (filters + table)"] --> OStore
   Port --> MD["marketData.ts (thin fetch)"]
+  OStore --> MD
   MD -->|"/api/account"| BFF["Hono BFF"]
   MD -->|"/api/positions"| BFF
   MD -->|"/api/portfolio/history"| BFF
+  MD -->|"/api/orders (place, list, cancel)"| BFF
   BFF -->|"key+secret headers (hidden)"| Alpaca["Alpaca Trading API (paper-api.alpaca.markets)"]
+  OStore -->|"reload after a write"| Port
 ```
 
 - **`server/alpaca.ts`** calls `GET /v2/account`, `GET /v2/positions`, and
@@ -180,6 +199,12 @@ flowchart LR
   allocation slices + open-P/L totals. The **Portfolio page** (`PortfolioView`) renders an
   SVG `AllocationDonut`, a `PortfolioChart` (lightweight-charts area) with range tabs, and a
   holdings `DataTable`.
+- **`useOrdersStore`** owns paper trading: `place()` / `cancel()` / `load()`, plus
+  `startPolling()` which re-polls every ~5s **only while an order is still working**
+  (`isOrderOpen`). After any write it reloads the portfolio store so a fill is reflected in
+  equity and holdings. We poll rather than subscribe to Alpaca's trade-updates stream, which
+  would need server-side auth (ADR-018). The **Orders page** (`OrdersView`) owns the status
+  filter and the cancel/toast flow; `OrdersTable` is presentational (rows in, `cancel` out).
 
 ## External integration: why a backend-for-frontend
 
@@ -212,15 +237,16 @@ Watchlist ──▶ localStorage
 Fast to build; **key is exposed and quota is tiny — do not deploy this**, and never
 put an Alpaca key here.
 
-**Stage 3 — backend-for-frontend (in progress, Phase 6–7).**
+**Stage 3 — backend-for-frontend (in progress, Phase 6–9).**
 ```
 Browser ──▶ /api/* (our BFF) ──▶ Market-data providers  (Finnhub + Alpaca, keys hidden, cached)
-                              └─▶ Alpaca Trading API     (account + positions now; orders later)
+                              └─▶ Alpaca Trading API     (account, positions, history + orders)
 Watchlist ──▶ (interim) localStorage  →  (later) BFF + DB
 ```
 The BFF holds all secrets, caches market data, and is the only thing that talks to
 Alpaca. The frontend only ever calls our own `/api/*`. **Realized so far:** symbol search
-+ quotes (Finnhub), **chart candles (Alpaca IEX)**, and **account + positions (Alpaca
-Trading, read-only, Phase 7)** all go through the Hono BFF. **Still frontend-direct:** the
-live trade WebSocket (revisited at deploy). **Still to come:** Alpaca order placement
-(Phase 9).
++ quotes (Finnhub), **chart candles (Alpaca IEX)**, **account + positions + portfolio
+history (Alpaca Trading, Phases 7–8)**, and **paper order placement/cancellation (Phase 9)**
+all go through the Hono BFF. **Still frontend-direct:** the live trade WebSocket (revisited
+at deploy). **Open before deploy:** the BFF is unauthenticated, which is fine locally but
+would expose the shared paper account once hosted (ADR-018).

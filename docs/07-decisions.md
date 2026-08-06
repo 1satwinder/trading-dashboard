@@ -213,6 +213,131 @@ decision is made. Keep them short.
   at real money; cached ~30s. **Still deferred:** place/cancel + close-position (Phase 9) and
   account configurations (not needed now).
 
+## ADR-018 — Alpaca paper trading (orders) via the BFF
+
+- **Status:** Accepted (Phase 9)
+- **Context:** The chart's order ticket was UI-only. Placing orders is the app's first
+  **write** path, and Alpaca's trading API is both key-bearing and not browser-CORS-friendly,
+  so it must stay server-side (ADR-009). Orders also change account equity and positions,
+  which the BFF caches.
+- **Decision:** Add four routes on the existing Trading host: `POST /api/orders`,
+  `GET /api/orders`, `GET /api/orders/:id`, `DELETE /api/orders/:id`. Supporting changes:
+  - `alpacaRequest()` grows `method`/`body` support and handles Alpaca's `204` (cancel).
+  - **Error passthrough:** `403` (insufficient buying power) and `422` (bad params, unknown
+    asset) keep their status and carry Alpaca's own `message` instead of being flattened into
+    a generic `502`, because they're user-actionable. The client `api()` helper likewise
+    prefers the BFF's `{ error }` text, so "insufficient buying power" reaches the toast.
+    `401` still becomes `502` (that's a server misconfiguration, not a user error).
+  - **Cache invalidation:** `server/cache.ts` gains `invalidate(...prefixes)`; every write
+    drops `orders:`, `account`, `positions` and `history:` so a fill shows up immediately
+    rather than after the 5s account TTL.
+  - **Validation before spending an upstream call:** the route rejects a missing symbol,
+    non-positive qty, unknown side/type/TIF, and a `limit`/`stop` order without its price.
+  - **Ticket vs response types:** orders placed elsewhere (e.g. Alpaca's dashboard) can carry
+    types/TIFs we don't offer, so `OrderType`/`OrderTimeInForce` cover Alpaca's full equity
+    sets for *responses*, while `TicketOrderType`/`TicketTimeInForce` (`market|limit|stop`,
+    `day|gtc`) constrain what we *place*.
+  - **Polling, not streaming:** `useOrdersStore` re-polls every ~5s but only while an order is
+    still working. Alpaca's trade-updates stream needs server-side auth and the
+    WebSocket-behind-BFF item is still open from Phase 6, so it's deliberately out of scope.
+  - UI: `OrderPanel` gains a time-in-force select and a review-and-confirm dialog; a new
+    `OrdersCard` on the Portfolio page lists orders with status tags and cancels open ones.
+- **Consequences:** Real paper orders work end to end with keys server-side, and fills flow
+  into the portfolio without a manual refresh. Trade-offs: a `day` market order placed outside
+  regular trading hours sits at `accepted` rather than filling, and polling means order state
+  can lag by up to ~5s. **Security note for Phase 12:** the BFF has no auth, so a *deployed*
+  instance would let anyone trade the shared paper account (ADR-012) — acceptable for local
+  dev, but deploying needs at least a rate limit or a shared secret. **Deferred:**
+  bracket/OCO/OTO classes, `PATCH` replace-order, close-position, cancel-all,
+  options/crypto, and fractional/notional orders.
+
+## ADR-019 — Orders get their own page; News dropped from scope
+
+- **Status:** Accepted (Phase 9, follow-up)
+- **Context:** Phase 9 first shipped the orders list as a card below Holdings on the Portfolio
+  page. In practice that page then had **two large tables stacked**, which read as cluttered
+  and left neither as the obvious primary content. The two also answer different questions:
+  holdings are a *current-state snapshot* you glance at, orders are a *time-ordered activity
+  log* you scan and act on. Meanwhile the nav had five primary items, one of which (`News`)
+  was still an empty placeholder.
+- **Decision:** Give orders a top-level route (`/orders`) and nav tab, and **remove News**
+  entirely — nav item, route, stub view, and its roadmap/feature entries — freeing the slot so
+  the nav item count stays at five (no mobile tab-bar layout change; that bar is flex-based
+  with no cap). Nav order becomes Watchlist, Portfolio, Orders, Chart, Markets, keeping the two
+  account pages adjacent. Because the page has room the card never had, it also gains
+  **status filter tabs** (All / Open / Filled / Canceled) with live counts; the buckets are
+  mutually exclusive and exhaustive (open → still working, filled → complete fill, canceled →
+  every other terminal state) so the counts sum to All. Filtering is client-side over the
+  already-polled list, so switching tabs is instant and costs no extra upstream calls.
+  `OrdersCard` was split into `OrdersView` (owns the store, filter, and cancel/toast flow) and
+  a presentational `OrdersTable` (rows in, `cancel` out). The order-polling lifecycle moved
+  from `PortfolioView` to `OrdersView`, and polling now refreshes **silently** (`load(status,
+  { silent: true })`) so it doesn't toggle the table's loading state every 5s.
+- **Loading state:** we deliberately do **not** bind PrimeVue's `DataTable :loading`. Because
+  cached BFF reads return in a few milliseconds, the `true → false` flip can orphan the
+  overlay's leave-transition and strand a `p-datatable-mask` (with `pointer-events: auto`)
+  over the table, silently swallowing clicks on the cancel buttons. The page renders a
+  `ProgressSpinner` for the initial load instead.
+- **Consequences:** Portfolio is back to a single table and reads cleaner; orders get room for
+  filters and future columns. Two trade-offs: polling now only runs while the Orders page is
+  open, so a fill that happens while you're elsewhere shows up on next visit rather than live
+  (acceptable — the portfolio reloads after any write anyway); and News is no longer planned,
+  so Phase 10 is Markets only. Finnhub's news endpoints simply go unused.
+
+## ADR-020 — Markets page on US-listed proxies (Alpaca only)
+
+- **Status:** Accepted (Phase 10)
+- **Context:** The Markets page needs three things — benchmark index cards, movers tables and a
+  sector heatmap — for **US and Canadian** markets. Two of those have no free data source:
+  - **Index levels.** `^GSPC` / `^IXIC` / `^GSPTSE` are premium on Finnhub, and Alpaca covers
+    only US stocks and ETFs. There is no free quote for an index itself.
+  - **The TSX.** Finnhub's free tier is **US-only** — `RY.TO` returns `Symbol not supported`,
+    and Canadian data is a paid international add-on. Alpaca doesn't list Canadian venues at all.
+
+  Finnhub also has no screener endpoint, so despite the earlier roadmap note that Phase 10 would
+  "consume Finnhub data", it turned out Finnhub can serve **none** of this page.
+- **Decision:** Build the page entirely on **Alpaca's free Basic plan**, approximating the two
+  gaps deliberately rather than paying for data or adding an unofficial provider:
+  - **Indices → ETF proxies.** `SPY` (S&P 500), `QQQ` (Nasdaq 100), `DIA` (Dow 30),
+    `IWM` (Russell 2000), `EWC` (Canada). The card shows the benchmark name with the proxy
+    ticker beside it, so it never claims to be the index itself.
+  - **Canada → US listings.** A curated universe of ~28 Canadian large caps by their **NYSE**
+    listing (`RY`, `TD`, `ENB`, `CNQ`, `CNI`, `CP`, `SHOP`, `AEM`, …). Prices are USD and track
+    the TSX lines closely, and — the deciding factor — every row stays **tradable in the paper
+    account**, so clicking through to the chart and placing an order still works end to end.
+    Real TSX symbols would be dead ends.
+  - **Sectors.** US tiles are the 11 SPDR Select Sector ETFs. Canada has no US-listed sector
+    ETFs, so its tiles are the equal-weighted mean of the curated universe grouped by sector —
+    derived from the snapshot the movers table already fetched, at no extra upstream cost.
+- **Honesty in the UI:** `MarketMovers.source` distinguishes `screener` (a real whole-market
+  scan) from `universe` (the curated Canadian list), and the card subtitle says which. Sector
+  tiles show either the backing ETF or an "N holdings" count. A curated list never reads as a
+  full-market scan.
+- **Filtering the screener:** Alpaca's movers/most-actives rank the raw tape, which is topped by
+  instruments no trading app would surface — live samples included `ATTO +4544%`, `MUA.RT` at
+  $0.004 and `FTHAW` (a warrant) at $0.63. Ranked lists were also swamped by **geared
+  single-stock ETFs**, which is structural rather than incidental: a 2x fund mechanically
+  out-moves whatever it tracks, so left alone the board fills with derivatives of the same few
+  stocks. So we over-fetch the screener's maximum (`top=50`) and filter down: price ≥ $5,
+  |change| ≤ 100% (a bigger day is almost always a reverse split, not a move), then a
+  `GET /v2/assets/{symbol}` lookup (cached 24h — names are static) to drop non-tradable symbols,
+  odd exchanges, warrants/rights/units, and any name that looks like both a fund *and* a geared
+  one. That lookup does double duty: the screener returns symbols only, so it's also where
+  company names come from. Plain 1x funds are kept — they're ordinary instruments.
+- **Requests:** everything is batched. `GET /v2/stocks/snapshots?symbols=…` prices a whole list
+  in one call (`dailyBar` vs `prevDailyBar` for the day's move), and one multi-symbol
+  `/v2/stocks/bars` call covers all five index sparklines. `/v2/clock` drives a market-status
+  pill and gates polling, which runs every 60s **only while the market is open** — prices don't
+  move overnight, so polling then would just burn quota. TTLs: clock/indices 30s, movers and
+  sectors 60s, assets 24h.
+- **Consequences:** The whole page runs on one provider and the free tier, with no new keys.
+  Prices carry the same IEX caveat as the chart (ADR-016): `prevDailyBar` is consolidated but
+  intraday values are IEX-only, so they can lag the composite slightly. The curated Canadian
+  universe is **hand-maintained** — it won't track index membership changes, and its
+  "gainers/losers" are only the ends of ~28 names, not a market scan. Real TSX coverage stays
+  out of scope until there's a data source that justifies it. Shared Alpaca transport moved to
+  `server/alpacaClient.ts` so `alpaca.ts` and `markets.ts` can both use it.
+
 ---
 
 ### Open decisions (not yet resolved)

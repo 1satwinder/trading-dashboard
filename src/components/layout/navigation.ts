@@ -13,9 +13,9 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { label: 'Watchlist', icon: 'pi pi-star', to: '/', exact: true },
   { label: 'Portfolio', icon: 'pi pi-chart-pie', to: '/portfolio' },
+  { label: 'Orders', icon: 'pi pi-receipt', to: '/orders' },
   { label: 'Chart', icon: 'pi pi-chart-line', to: '/chart' },
   { label: 'Markets', icon: 'pi pi-globe', to: '/markets' },
-  { label: 'News', icon: 'pi pi-book', to: '/news' },
 ]
 
 export const settingsItem: NavItem = {

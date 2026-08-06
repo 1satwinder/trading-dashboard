@@ -1,0 +1,66 @@
+---
+description: Backend-for-frontend (Hono) conventions — adding providers, routes and caching in server/
+globs: server/**/*.ts
+alwaysApply: false
+---
+
+# BFF conventions (`server/`)
+
+The BFF is a Hono app that owns every provider key (Finnhub, Alpaca) so the browser only ever
+calls same-origin `/api/*`. See `docs/04-architecture.md` and ADR-015/016/017/018/020.
+
+## Adding a new data domain — the recipe
+
+Every existing domain (search, quotes, candles, account, orders, markets) followed the same five
+steps. Follow it again rather than inventing a new shape:
+
+1. **Types** in `src/types/market.ts` (shared between `server/` and `src/`).
+2. **Provider function** in `server/finnhub.ts` / `server/alpaca.ts` / `server/markets.ts` (or a
+   new file for a new provider). Wrap the upstream call in `cached(key, ttlMs, fn)`.
+3. **Route** in `server/index.ts`: `try { return c.json(await providerFn(...)) } catch (err) {
+   const { status, body } = fail(err); return c.json(body, status as <literal union>) }`.
+4. **Client wrapper** in `src/services/marketData.ts`: a one-line `api<T>('/api/...')` call.
+   The BFF owns all mapping/business logic — this file is a thin pass-through, never a place to
+   duplicate it.
+5. **Store/view** consumes the client wrapper. Don't call `fetch` or a provider directly from
+   `src/` — the service layer is the only seam.
+
+## Shared primitives — reuse, don't reinvent
+
+- `cached<T>(key, ttlMs, fn)` / `invalidate(...prefixes)` — `server/cache.ts`. Read-through only;
+  there's no direct `get`/`set`. Call `invalidate()` after any write so the next read isn't stale.
+- `ProviderError(status, message)` — `server/errors.ts`. Throw this (not a plain `Error`) when a
+  provider call fails, so `fail()` in `index.ts` can map it to the right HTTP status.
+- Alpaca transport lives in `server/alpacaClient.ts`: `ALPACA_DATA_URL` / `ALPACA_TRADING_URL`,
+  `alpacaRequest<T>(url, init?)`, `num()` / `optionalNum()` for Alpaca's stringified numbers. Both
+  `alpaca.ts` and `markets.ts` import from here — don't duplicate credentials/fetch handling in a
+  new file.
+- Cache key convention: lowercase, colon-separated, parameterized where data varies (e.g.
+  `bars:${symbol}:${timeframeId}`, `markets:movers:${region}`).
+
+## TTLs (tune per endpoint, but stay in this range)
+
+| Kind of data | TTL |
+| --- | --- |
+| Symbol/asset metadata (names, listings) | 1h–24h |
+| Quotes / snapshots / movers / sectors | 10s–60s |
+| Chart bars | 30s–5min (shorter for intraday) |
+| Account / positions / orders | 2s–5s |
+
+## Route validation
+
+Validate enum-like query params with a `ReadonlySet<string>` built from the relevant union type
+(see `CHART_TIMEFRAME_IDS`, `MARKET_REGIONS`, `ORDER_STATUS_FILTERS`), trim + normalize case, and
+400 on an unknown value rather than letting it reach the provider.
+
+## Fault tolerance for batch lookups
+
+When fetching many symbols where one bad one shouldn't sink the response, use
+`Promise.allSettled` and drop failures (see `fetchQuotes`, `namedCommonStock`) — never
+`Promise.all` for this shape.
+
+## Never
+
+- Never let a provider key reach `src/` or the browser — it must live only behind `server/`.
+- Never bind PrimeVue `DataTable :loading` to a cached/near-instant BFF response — see the
+  `p-datatable-mask` gotcha in `CLAUDE.md`.

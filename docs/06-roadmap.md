@@ -143,16 +143,39 @@ See `04-architecture.md` for the data-source evolution.
 
 > The write half of Alpaca: place/cancel orders, wired to the chart's order panel.
 
-- [ ] Alpaca orders in the BFF: place/cancel orders + order status.
-- [ ] Wire the chart's order panel → real paper orders; reflect fills in positions/portfolio.
-- [ ] Single shared paper account, no user auth (ADR-012).
+- [x] Alpaca orders in the BFF: place/cancel orders + order status.
+      _(`POST /api/orders`, `GET /api/orders`, `GET /api/orders/:id`, `DELETE /api/orders/:id`.
+      `alpacaRequest()` is now write-capable, Alpaca's `403`/`422` messages pass through to the
+      UI, and writes invalidate the account/positions/history/orders caches. See ADR-018.)_
+- [x] Wire the chart's order panel → real paper orders; reflect fills in positions/portfolio.
+      _(`OrderPanel` gained a time-in-force select + review-and-confirm dialog and submits via
+      `useOrdersStore`, polling every ~5s while any order is still working.)_
+- [x] Dedicated **Orders** page (`/orders`) with status filter tabs and cancel.
+      _(Orders first shipped as a card under Holdings, then moved to their own nav tab — two
+      stacked tables made the Portfolio page cluttered. `OrdersView` owns the filter + cancel
+      flow; `OrdersTable` is presentational. See ADR-019.)_
+- [x] Single shared paper account, no user auth (ADR-012).
+      _(Note: the BFF is unauthenticated, so deploying it needs a guard — see ADR-018 and
+      Phase 12.)_
 
-## Phase 10 — Markets & News
+## Phase 10 — Markets
 
-> Both consume Finnhub data through the BFF (Phase 6).
+> Consumes **Alpaca** data through the BFF. (Originally planned on Finnhub, but its free tier
+> is US-only and has no screener, so it can serve none of this page — see ADR-020.)
 
-- [ ] Markets: index cards, movers tables, sector heatmap.
-- [ ] News: feed of article cards.
+- [x] Markets: index cards, movers tables, sector heatmap.
+      _(`MarketsView` = a market-status pill from `/v2/clock`, five benchmark `IndexCard`s, a
+      US/Canada `SelectButton`, gainers/losers/most-active `MoversTable`s and a
+      `SectorHeatmap`, backed by `/api/markets/{clock,indices,movers,sectors}` +
+      `useMarketsStore`. Refreshes every 60s **only while the market is open**.)_
+- [x] Work around the two gaps in free data: **indices are ETF proxies** (SPY/QQQ/DIA/IWM/EWC)
+      and **Canada is US listings** — no free feed covers index levels or the TSX, and NYSE
+      dual-listings keep every row tradable in the paper account. The UI labels both honestly.
+- [x] Filter the screener down to real names. _(Alpaca's raw movers are topped by penny stocks,
+      warrants and geared single-stock ETFs; we over-fetch `top=50` then filter on price,
+      move size and a cached `/v2/assets` lookup. See ADR-020.)_
+
+_News was dropped from scope (ADR-019); the nav slot it occupied is now Orders._
 
 ## Phase 11 — Polish
 

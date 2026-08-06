@@ -21,3 +21,14 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
   store.set(key, { value, expires: Date.now() + ttlMs })
   return value
 }
+
+/**
+ * Drop cache entries whose key starts with any of the given prefixes. Used after
+ * writes (placing/cancelling an order) so the next read reflects the change
+ * instead of serving a stale account/positions snapshot.
+ */
+export function invalidate(...prefixes: string[]): void {
+  for (const key of store.keys()) {
+    if (prefixes.some((prefix) => key.startsWith(prefix))) store.delete(key)
+  }
+}

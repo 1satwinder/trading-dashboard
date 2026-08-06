@@ -30,8 +30,7 @@ function loadEntries(): WatchlistEntry[] {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
-      (e): e is WatchlistEntry =>
-        e && typeof e.symbol === 'string' && typeof e.name === 'string',
+      (e): e is WatchlistEntry => e && typeof e.symbol === 'string' && typeof e.name === 'string',
     )
   } catch {
     return []

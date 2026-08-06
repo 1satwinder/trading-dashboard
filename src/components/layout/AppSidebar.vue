@@ -19,9 +19,7 @@ const linkInactive =
   >
     <!-- Brand -->
     <div class="flex h-16 items-center gap-2 px-4">
-      <span
-        class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary"
-      >
+      <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
         <i class="pi pi-chart-bar text-lg" />
       </span>
       <span v-if="!ui.sidebarCollapsed" class="text-lg font-bold tracking-tight text-color">
@@ -52,11 +50,7 @@ const linkInactive =
 
     <!-- Settings, pinned to the bottom -->
     <div class="border-t border-surface-200 px-2 py-3 dark:border-surface-800">
-      <RouterLink
-        v-slot="{ href, navigate, isActive }"
-        :to="settingsItem.to"
-        custom
-      >
+      <RouterLink v-slot="{ href, navigate, isActive }" :to="settingsItem.to" custom>
         <a
           :href="href"
           :title="ui.sidebarCollapsed ? settingsItem.label : undefined"

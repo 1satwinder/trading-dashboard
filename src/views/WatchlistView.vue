@@ -90,7 +90,9 @@ onUnmounted(() => {
     <div
       class="overflow-hidden rounded-border border border-surface-200 bg-surface-0 dark:border-surface-800 dark:bg-surface-900"
     >
-      <div class="flex items-center justify-between gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-800">
+      <div
+        class="flex items-center justify-between gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-800"
+      >
         <div class="flex items-center gap-3">
           <h2 class="font-semibold text-color">Watchlist</h2>
           <span
@@ -121,12 +123,7 @@ onUnmounted(() => {
         />
       </div>
 
-      <Message
-        v-if="watchlist.error"
-        severity="error"
-        :closable="false"
-        class="m-4"
-      >
+      <Message v-if="watchlist.error" severity="error" :closable="false" class="m-4">
         {{ watchlist.error }}
       </Message>
 
