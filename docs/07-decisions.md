@@ -338,6 +338,43 @@ decision is made. Keep them short.
   out of scope until there's a data source that justifies it. Shared Alpaca transport moved to
   `server/alpacaClient.ts` so `alpaca.ts` and `markets.ts` can both use it.
 
+## ADR-021 — Deploy to Netlify: Functions BFF, WS stays frontend-direct, auth gap accepted
+
+- **Status:** Accepted (Phase 12)
+- **Context:** The BFF (`server/`) was a standalone `@hono/node-server` process, fine for
+  local dev but not directly deployable to Netlify, which runs static assets + serverless
+  functions rather than a long-lived Node process. Two open items were already flagged for
+  this phase: the live WebSocket is still frontend-direct (ADR-015), and the BFF has no auth
+  (ADR-018), which matters once `/api/orders` is reachable by anyone.
+- **Decision:**
+  - **BFF → Netlify Function.** Extracted the Hono app + all routes out of `server/index.ts`
+    into a runtime-agnostic `server/app.ts` (just the `Hono` instance, no `serve()`/`dotenv`).
+    `server/index.ts` keeps the local-dev entry point (`@hono/node-server`, unchanged
+    behavior); a new `netlify/functions/api.ts` mounts the same app via `hono/netlify`'s
+    `handle()` for production. `netlify.toml` redirects `/api/*` to the function (mirroring
+    the Vite dev proxy) and adds an SPA fallback (`/* → /index.html`) since
+    `src/router/index.ts` uses `createWebHistory`.
+  - **Git-based continuous deployment.** The repo is on GitHub; Netlify's dashboard is
+    connected directly to it, so every push to `main` triggers a build + deploy with no CLI
+    or agent step. No Netlify MCP server was available, so the one-time GitHub-App
+    authorization and env var setup were done by hand in Netlify's UI.
+  - **WS stays frontend-direct, kept as-is.** `VITE_FINNHUB_API_KEY` still ships in the
+    client bundle in production. Netlify Functions can't hold a persistent WebSocket open,
+    so proxying it server-side would need a different runtime (a small always-on process
+    elsewhere) — out of scope for this deploy. Accepted because it's a **read-only
+    market-data key** with no trading power; exposure only risks API quota, not money.
+  - **BFF auth gap accepted, not fixed.** `/api/orders` (place/cancel) and account/positions
+    remain unauthenticated in production, same as local dev. It's a **paper** account
+    (fake money, ADR-012), so the acceptable-risk case from ADR-018 was taken as-is rather
+    than adding a shared secret or rate limit.
+- **Consequences:** The frontend/BFF split needed no rearchitecting — only an extra thin
+  entry point — because the service-layer seam (ADR-010) and the shared `server/app.ts`
+  kept provider logic in one place. Two honest, documented gaps ship to production: the
+  Finnhub WS key is publicly visible in the bundle, and the shared paper account is
+  reachable by anyone with the URL. Both are called out here rather than left implicit;
+  revisiting either (WS-behind-a-proxy, a shared-secret header, or rate limiting) remains
+  straightforward future work if the project's risk profile changes.
+
 ---
 
 ### Open decisions (not yet resolved)

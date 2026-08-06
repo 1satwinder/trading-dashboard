@@ -186,5 +186,16 @@ _News was dropped from scope (ADR-019); the nav slot it occupied is now Orders._
 
 ## Phase 12 — Deploy
 
-- [ ] Deploy frontend + BFF (e.g. Vercel/Netlify); configure secrets/env.
+- [x] Deploy frontend + BFF to **Netlify**; configure secrets/env.
+      _(Static SPA on Netlify's CDN + the Hono BFF as a single Netlify Function
+      (`netlify/functions/api.ts` via `hono/netlify`'s `handle()`), fed by a shared
+      `server/app.ts` so local dev (`server/index.ts` + `@hono/node-server`) and
+      production run the same routes. Git-based continuous deployment from a GitHub repo
+      — every push to `main` auto-builds and deploys, no manual step. `netlify.toml` owns
+      the build config, the `/api/*` → function redirect, and the SPA fallback redirect
+      (`createWebHistory` needs one for deep links). Provider keys
+      (`FINNHUB_API_KEY`/`ALPACA_API_KEY_ID`/`ALPACA_API_SECRET_KEY`) live only in
+      Netlify's env vars, never committed. See ADR-021 for the two things deliberately
+      **not** changed for deploy — the WS stays frontend-direct and the BFF stays
+      unauthenticated — and why.)_
 - [ ] Write the project README (screenshots, live demo, setup).
