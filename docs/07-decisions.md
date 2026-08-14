@@ -380,6 +380,30 @@ decision is made. Keep them short.
 
 ---
 
+## ADR-022 — Symbol search: selecting a result opens the chart; watchlist toggle moves to a per-row star button
+
+- **Status:** Accepted (Polish)
+- **Context:** `SymbolSearch.vue` originally treated "select a result" and "add to
+  watchlist" as the same action — clicking a dropdown row called
+  `useWatchlistStore.add()` directly and showed a toast, with no way to reach a symbol's
+  chart from search at all. Every other symbol touchpoint in the app (Watchlist rows,
+  Markets movers/index cards/sectors) instead opens `/chart/:symbol` on click, so search
+  was the inconsistent one, and conflated two distinct intents (look something up vs.
+  follow it) into a single click.
+- **Decision:** Split the two actions. Selecting a row (click or Enter) now navigates to
+  `router.push({ name: 'chart', params: { symbol } })`, matching the rest of the app.
+  A small star `Button` on each row (filled/`success` when already followed, outline/
+  `secondary` otherwise) toggles watchlist membership via the existing
+  `useWatchlistStore.add()` / `remove()`, using `@click.stop` so it never bubbles into
+  PrimeVue's `option-select` and the dropdown stays open — letting a user add several
+  symbols in one search session before navigating away.
+- **Consequences:** Search now behaves consistently with every other symbol list in the
+  app, and watchlist management from search is explicit and reversible in place (no need
+  to visit the Watchlist page to undo an accidental add). No store or BFF changes were
+  needed — `useWatchlistStore` already exposed both `add()` and `remove()`.
+
+---
+
 ### Open decisions (not yet resolved)
 
 - Dedicated Home/Dashboard landing page vs landing on Watchlist.

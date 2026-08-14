@@ -20,7 +20,9 @@ the same ADR.
 ## Key feature flows
 
 - **Symbol search** — top-bar autocomplete (PrimeVue `AutoComplete`) querying the
-  market-data provider's search endpoint; results link to the chart / add to watchlist.
+  market-data provider's search endpoint; selecting a result opens that symbol's chart
+  (`/chart/:symbol`), while a star button on each row toggles it in/out of the watchlist
+  without navigating (ADR-022).
 - **Watchlist** — add/remove searched symbols; persisted (interim `localStorage`,
   later backend + DB); live quotes from the provider.
 - **Paper trading** — from the chart's order panel, review and place a (paper) order via

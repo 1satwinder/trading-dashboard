@@ -121,13 +121,18 @@ Adding a symbol to the watchlist starts with a type-ahead search in the top bar:
 
 ```
 SymbolSearch (AutoComplete) → useSearchStore.search() → marketData.searchSymbols() → /api/search → BFF → Finnhub /search
-                            ↳ select result → useWatchlistStore.add()
+                            ↳ select row → router.push(/chart/:symbol)
+                            ↳ per-row star button → useWatchlistStore.add() / remove()
 ```
 
 - **`SymbolSearch.vue`** (`components/layout/`) wraps PrimeVue `AutoComplete`. It
-  debounces input via the `delay` prop, renders each result (symbol, name, type) with
-  an "Added" tag when it's already followed, and on select delegates to
-  `useWatchlistStore.add()` and shows a toast.
+  debounces input via the `delay` prop and renders each result (symbol, name, type)
+  with a per-row star `Button` that toggles watchlist membership in place (`@click.stop`
+  so it never bubbles into option-select) — filled/`success` when followed, outline/
+  `secondary` otherwise, with a toast either way. Selecting the row itself (click or
+  Enter) navigates to that symbol's chart page (`/chart/:symbol`), the same pattern
+  every other symbol touchpoint (Watchlist rows, Markets movers/index cards/sectors)
+  already uses (ADR-022).
 - **`useSearchStore`** runs the request and holds `query` / `results` / `loading` /
   `error`. It stamps each request with a sequence number so **out-of-order responses
   from earlier keystrokes are ignored** (only the latest query wins).
