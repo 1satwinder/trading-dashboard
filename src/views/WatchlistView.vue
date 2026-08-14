@@ -50,7 +50,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="space-y-6">
+  <section class="flex flex-col gap-8">
     <!-- Portfolio summary -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <StatCard

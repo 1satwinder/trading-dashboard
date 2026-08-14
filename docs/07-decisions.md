@@ -271,8 +271,8 @@ decision is made. Keep them short.
   already-polled list, so switching tabs is instant and costs no extra upstream calls.
   `OrdersCard` was split into `OrdersView` (owns the store, filter, and cancel/toast flow) and
   a presentational `OrdersTable` (rows in, `cancel` out). The order-polling lifecycle moved
-  from `PortfolioView` to `OrdersView`, and polling now refreshes **silently** (`load(status,
-  { silent: true })`) so it doesn't toggle the table's loading state every 5s.
+  from `PortfolioView` to `OrdersView`, and polling now refreshes **silently**
+  (`load(status, { silent: true })`) so it doesn't toggle the table's loading state every 5s.
 - **Loading state:** we deliberately do **not** bind PrimeVue's `DataTable :loading`. Because
   cached BFF reads return in a few milliseconds, the `true → false` flip can orphan the
   overlay's leave-transition and strand a `p-datatable-mask` (with `pointer-events: auto`)
@@ -284,18 +284,19 @@ decision is made. Keep them short.
   (acceptable — the portfolio reloads after any write anyway); and News is no longer planned,
   so Phase 10 is Markets only. Finnhub's news endpoints simply go unused.
 
+---
+
 ## ADR-020 — Markets page on US-listed proxies (Alpaca only)
 
 - **Status:** Accepted (Phase 10)
 - **Context:** The Markets page needs three things — benchmark index cards, movers tables and a
   sector heatmap — for **US and Canadian** markets. Two of those have no free data source:
-  - **Index levels.** `^GSPC` / `^IXIC` / `^GSPTSE` are premium on Finnhub, and Alpaca covers
-    only US stocks and ETFs. There is no free quote for an index itself.
-  - **The TSX.** Finnhub's free tier is **US-only** — `RY.TO` returns `Symbol not supported`,
-    and Canadian data is a paid international add-on. Alpaca doesn't list Canadian venues at all.
-
-  Finnhub also has no screener endpoint, so despite the earlier roadmap note that Phase 10 would
-  "consume Finnhub data", it turned out Finnhub can serve **none** of this page.
+  **index levels** (`^GSPC` / `^IXIC` / `^GSPTSE` are premium on Finnhub; Alpaca covers only
+  US stocks and ETFs, so there is no free quote for an index itself) and **the TSX** (Finnhub's
+  free tier is **US-only** — `RY.TO` returns `Symbol not supported` — and Alpaca doesn't list
+  Canadian venues at all). Finnhub also has no screener endpoint, so despite the earlier roadmap
+  note that Phase 10 would "consume Finnhub data", it turned out Finnhub can serve **none** of
+  this page.
 - **Decision:** Build the page entirely on **Alpaca's free Basic plan**, approximating the two
   gaps deliberately rather than paying for data or adding an unofficial provider:
   - **Indices → ETF proxies.** `SPY` (S&P 500), `QQQ` (Nasdaq 100), `DIA` (Dow 30),
@@ -319,7 +320,7 @@ decision is made. Keep them short.
   single-stock ETFs**, which is structural rather than incidental: a 2x fund mechanically
   out-moves whatever it tracks, so left alone the board fills with derivatives of the same few
   stocks. So we over-fetch the screener's maximum (`top=50`) and filter down: price ≥ $5,
-  |change| ≤ 100% (a bigger day is almost always a reverse split, not a move), then a
+  `|change|` ≤ 100% (a bigger day is almost always a reverse split, not a move), then a
   `GET /v2/assets/{symbol}` lookup (cached 24h — names are static) to drop non-tradable symbols,
   odd exchanges, warrants/rights/units, and any name that looks like both a fund *and* a geared
   one. That lookup does double duty: the screener returns symbols only, so it's also where
@@ -338,6 +339,8 @@ decision is made. Keep them short.
   out of scope until there's a data source that justifies it. Shared Alpaca transport moved to
   `server/alpacaClient.ts` so `alpaca.ts` and `markets.ts` can both use it.
 
+---
+
 ## ADR-021 — Deploy to Netlify: Functions BFF, WS stays frontend-direct, auth gap accepted
 
 - **Status:** Accepted (Phase 12)
@@ -346,7 +349,7 @@ decision is made. Keep them short.
   functions rather than a long-lived Node process. Two open items were already flagged for
   this phase: the live WebSocket is still frontend-direct (ADR-015), and the BFF has no auth
   (ADR-018), which matters once `/api/orders` is reachable by anyone.
-- **Decision:**
+- **Decision:** Four deploy choices:
   - **BFF → Netlify Function.** Extracted the Hono app + all routes out of `server/index.ts`
     into a runtime-agnostic `server/app.ts` (just the `Hono` instance, no `serve()`/`dotenv`).
     `server/index.ts` keeps the local-dev entry point (`@hono/node-server`, unchanged
