@@ -84,6 +84,13 @@ See `04-architecture.md` for the data-source evolution.
       _(In-card toolbar: candlestick/line/area toggle, an indicators popover with SMA 20/50
       overlays (computed client-side), and native Fullscreen-API toggle. Timeframe tabs
       moved into the toolbar.)_
+- [x] Symbol-info header: real key stats + order-panel alignment fix.
+      _(`SymbolStatsHeader` moved the header above the chart/order-panel grid — fixing an
+      alignment bug where it only offset the left column — and replaced timeframe-derived
+      Open/High/Low/Vol with real day stats. New `/api/stats` endpoint combines Alpaca's
+      snapshot (today's open/high/low/prev close/volume) with Finnhub's basic-financials
+      metric (52-week range, market cap, P/E, dividend yield) — Alpaca has no fundamentals
+      data at any tier. `OrderPanel` is now sticky on scroll. See ADR-023.)_
 
 ## Phase 6 — Backend-for-frontend (BFF)
 

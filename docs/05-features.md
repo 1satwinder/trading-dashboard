@@ -8,7 +8,7 @@
 | **Watchlist** | Symbols the user follows | Sortable table (desktop) / cards (mobile): symbol, price, % change, sparkline |
 | **Portfolio** | Holdings & performance | Total value + day change, allocation donut, performance chart, holdings table, P/L |
 | **Orders** | Paper order activity | Status filter tabs (All/Open/Filled/Canceled) with counts, orders table, cancel an open order |
-| **Chart** | Detailed view for one symbol | Candlestick chart, timeframe tabs (1D/1W/1M/1Y), order panel (real Alpaca **paper** Buy/Sell), key stats |
+| **Chart** | Detailed view for one symbol | Symbol-info header (price, day range, volume, market cap, P/E, dividend yield, 52-week range bar), candlestick chart, timeframe tabs (1D–5Y), sticky order panel (real Alpaca **paper** Buy/Sell) |
 | **Markets** | Discover / browse | Market-status pill, five index cards, US/Canada tabs, gainers / losers / most-active tables, sector heatmap |
 | **Settings** | Preferences | Theme toggle, display options |
 

@@ -1,4 +1,4 @@
-import type { Quote, SymbolSearchResult } from '../src/types/market'
+import type { Quote, StockStats, SymbolSearchResult } from '../src/types/market'
 import { ProviderError } from './errors'
 import { cached } from './cache'
 
@@ -40,6 +40,7 @@ async function finnhub<T>(path: string, params: Record<string, string>): Promise
 
 const SEARCH_TTL = 60 * 60 * 1000 // 1 hour — symbol metadata is stable
 const QUOTE_TTL = 10 * 1000 // 10 seconds — protects bursts without feeling stale
+const METRIC_TTL = 60 * 60 * 1000 // 1 hour — fundamentals (52W range, market cap, P/E…) move slowly
 
 // ---- Symbol search ---------------------------------------------------------
 
@@ -126,6 +127,48 @@ export async function fetchQuotes(symbols: string[]): Promise<Quote[]> {
 function buildSparkline(q: FinnhubQuote): number[] {
   const pts = [q.pc, q.o, q.l, q.h, q.c].filter((n) => typeof n === 'number' && n > 0)
   return pts.length >= 2 ? pts : []
+}
+
+// ---- Basic financials (fundamentals) ---------------------------------------
+
+/**
+ * The handful of fields we use from Finnhub's `/stock/metric?metric=all`
+ * ("Basic Financials"), which returns ~100+ fields under `metric` — free tier,
+ * unlike market cap / 52-week range / P/E / dividend yield on Alpaca, which
+ * doesn't carry fundamentals at any tier.
+ *
+ * `marketCapitalization` and the average-volume fields are reported in
+ * millions (confirmed against Finnhub's own examples, e.g. `2926914.5` for
+ * AAPL's market cap ≈ $2.93T).
+ */
+interface FinnhubMetrics {
+  '52WeekHigh'?: number
+  '52WeekLow'?: number
+  marketCapitalization?: number
+  '3MonthAverageTradingVolume'?: number
+  peBasicExclExtraTTM?: number
+  dividendYieldIndicatedAnnual?: number
+}
+
+interface FinnhubMetricResponse {
+  metric?: FinnhubMetrics
+}
+
+/** Basic-financials fundamentals for one symbol (52W range, market cap, P/E, dividend yield). */
+export function fetchMetrics(symbol: string): Promise<Partial<StockStats>> {
+  return cached(`metrics:${symbol}`, METRIC_TTL, async () => {
+    const data = await finnhub<FinnhubMetricResponse>('/stock/metric', { symbol, metric: 'all' })
+    const m = data.metric ?? {}
+    const million = (n: number | undefined) => (typeof n === 'number' ? n * 1_000_000 : undefined)
+    return {
+      weekHigh52: m['52WeekHigh'],
+      weekLow52: m['52WeekLow'],
+      marketCap: million(m.marketCapitalization),
+      avgVolume3Month: million(m['3MonthAverageTradingVolume']),
+      peRatio: m.peBasicExclExtraTTM,
+      dividendYield: m.dividendYieldIndicatedAnnual,
+    }
+  })
 }
 
 function toTitleCase(value: string): string {

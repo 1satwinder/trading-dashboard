@@ -15,6 +15,7 @@ import type {
   Position,
   Quote,
   SectorPerformance,
+  StockStats,
   SymbolSearchResult,
   WatchlistEntry,
 } from '@/types/market'
@@ -133,6 +134,14 @@ export function fetchCandles(symbol: string, timeframeId: ChartTimeframeId): Pro
   return api<Candle[]>(
     `/api/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframeId)}`,
   )
+}
+
+/**
+ * Chart-page symbol-info header: day stats (Alpaca) + fundamentals (Finnhub),
+ * combined server-side (see `server/stats.ts` + ADR-023).
+ */
+export function fetchStockStats(symbol: string): Promise<StockStats> {
+  return api<StockStats>(`/api/stats?symbol=${encodeURIComponent(symbol)}`)
 }
 
 // ---- Portfolio (real, via Alpaca account + positions through the BFF) ------

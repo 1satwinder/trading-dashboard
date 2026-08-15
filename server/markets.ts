@@ -103,7 +103,7 @@ const MOVER_ROWS = 8
 
 // ---- Snapshots --------------------------------------------------------------
 
-interface AlpacaSnapshotBar {
+export interface AlpacaSnapshotBar {
   c: number
   h: number
   l: number
@@ -112,13 +112,13 @@ interface AlpacaSnapshotBar {
   t: string
 }
 
-interface AlpacaSnapshot {
+export interface AlpacaSnapshot {
   dailyBar?: AlpacaSnapshotBar
   prevDailyBar?: AlpacaSnapshotBar
   latestTrade?: { p: number }
 }
 
-type SnapshotMap = Record<string, AlpacaSnapshot | undefined>
+export type SnapshotMap = Record<string, AlpacaSnapshot | undefined>
 
 /** Price + day change for one symbol, in one batched call per list. */
 interface SnapshotStats {
@@ -148,8 +148,8 @@ function fromSnapshot(snapshot: AlpacaSnapshot | undefined): SnapshotStats {
   }
 }
 
-/** Fetch snapshots for many symbols in a single call. */
-async function fetchSnapshots(symbols: readonly string[]): Promise<SnapshotMap> {
+/** Fetch snapshots for many symbols in a single call. Shared with `server/stats.ts`. */
+export async function fetchSnapshots(symbols: readonly string[]): Promise<SnapshotMap> {
   if (symbols.length === 0) return {}
   const url = new URL(`${ALPACA_DATA_URL}/v2/stocks/snapshots`)
   url.searchParams.set('symbols', symbols.join(','))

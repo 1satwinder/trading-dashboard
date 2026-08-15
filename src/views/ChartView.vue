@@ -7,14 +7,13 @@ import Popover from 'primevue/popover'
 import Checkbox from 'primevue/checkbox'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
-import PriceTag from '@/components/common/PriceTag.vue'
 import PriceChart, { type ChartType } from '@/components/chart/PriceChart.vue'
 import OrderPanel from '@/components/chart/OrderPanel.vue'
+import SymbolStatsHeader from '@/components/chart/SymbolStatsHeader.vue'
 import { useChartStore } from '@/stores/chart'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { CHART_TIMEFRAMES } from '@/services/marketData'
 import type { ChartTimeframeId } from '@/types/market'
-import { formatCompact, formatCurrency } from '@/utils/format'
 
 const route = useRoute()
 const chart = useChartStore()
@@ -95,43 +94,13 @@ watch(() => route.params.symbol, syncSymbol)
 </script>
 
 <template>
-  <section>
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <!-- Left: header + chart -->
-      <div class="min-w-0 space-y-4">
-        <!-- Header -->
-        <div>
-          <div class="flex items-baseline gap-2">
-            <h1 class="text-2xl font-bold text-color">{{ chart.symbol }}</h1>
-            <span v-if="chart.name" class="text-sm text-muted-color">{{ chart.name }}</span>
-          </div>
+  <section class="space-y-4">
+    <!-- Header: symbol, price, day stats + fundamentals -->
+    <SymbolStatsHeader />
 
-          <div class="mt-1 flex items-center gap-3">
-            <span class="text-3xl font-bold tabular-nums text-color">
-              {{ formatCurrency(chart.lastPrice) }}
-            </span>
-            <span class="flex items-center gap-1">
-              <PriceTag :value="chart.change" format="currency" show-arrow />
-              <PriceTag :value="chart.changePercent" format="percent" class="text-muted-color" />
-            </span>
-          </div>
-
-          <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-            <span class="text-muted-color">
-              Open <span class="tabular-nums text-color">{{ formatCurrency(chart.open) }}</span>
-            </span>
-            <span class="text-muted-color">
-              High <span class="tabular-nums text-color">{{ formatCurrency(chart.high) }}</span>
-            </span>
-            <span class="text-muted-color">
-              Low <span class="tabular-nums text-color">{{ formatCurrency(chart.low) }}</span>
-            </span>
-            <span class="text-muted-color">
-              Vol <span class="tabular-nums text-color">{{ formatCompact(chart.volume) }}</span>
-            </span>
-          </div>
-        </div>
-
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <!-- Left: chart -->
+      <div class="min-w-0">
         <!-- Chart card -->
         <div
           ref="cardEl"

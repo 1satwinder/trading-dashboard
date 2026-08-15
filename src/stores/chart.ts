@@ -1,14 +1,18 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { Candle, ChartTimeframeId } from '@/types/market'
-import { fetchCandles } from '@/services/marketData'
+import type { Candle, ChartTimeframeId, StockStats } from '@/types/market'
+import { fetchCandles, fetchStockStats } from '@/services/marketData'
 
 const DEFAULT_TIMEFRAME: ChartTimeframeId = '1D'
 
 /**
  * State for the Chart page: the active symbol + timeframe and its candle series.
- * Header stats (last price, change, OHLC, volume) are derived from the loaded
- * candles so the numbers always match what's drawn.
+ * The big price/change is derived from the loaded candles (so it always matches
+ * what's drawn, and reflects the selected timeframe's move). The symbol-info
+ * header's day stats + fundamentals (`stats`) are fetched separately per
+ * symbol — see `SymbolStatsHeader.vue` + ADR-023 — since they're
+ * timeframe-independent (today's open/high/low don't change when you switch
+ * from 1D to 1Y).
  */
 export const useChartStore = defineStore('chart', () => {
   const symbol = ref('')
@@ -17,6 +21,9 @@ export const useChartStore = defineStore('chart', () => {
   const candles = ref<Candle[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+
+  const stats = ref<StockStats | null>(null)
+  const statsLoading = ref(false)
 
   const hasData = computed(() => candles.value.length > 0)
   const first = computed(() => candles.value[0])
@@ -30,17 +37,11 @@ export const useChartStore = defineStore('chart', () => {
   const changePercent = computed(() =>
     first.value?.open ? (change.value / first.value.open) * 100 : 0,
   )
-  const open = computed(() => first.value?.open ?? 0)
-  const high = computed(() =>
-    candles.value.length ? Math.max(...candles.value.map((c) => c.high)) : 0,
-  )
-  const low = computed(() =>
-    candles.value.length ? Math.min(...candles.value.map((c) => c.low)) : 0,
-  )
-  const volume = computed(() => candles.value.reduce((sum, c) => sum + c.volume, 0))
 
   /** Guards against out-of-order responses from rapid symbol/timeframe changes. */
   let seq = 0
+  /** Same guard, kept separate since stats load on a different cadence than candles. */
+  let statsSeq = 0
 
   async function load() {
     if (!symbol.value) return
@@ -60,6 +61,23 @@ export const useChartStore = defineStore('chart', () => {
     }
   }
 
+  async function loadStats() {
+    if (!symbol.value) return
+    const current = ++statsSeq
+    const requested = symbol.value
+    statsLoading.value = true
+    try {
+      const data = await fetchStockStats(requested)
+      if (current !== statsSeq) return
+      stats.value = data
+    } catch {
+      if (current !== statsSeq) return
+      stats.value = null
+    } finally {
+      if (current === statsSeq) statsLoading.value = false
+    }
+  }
+
   /** Point the chart at a symbol (with optional display name) and reload. */
   function setSymbol(next: string, displayName = '') {
     const normalized = next.trim().toUpperCase()
@@ -69,7 +87,9 @@ export const useChartStore = defineStore('chart', () => {
     }
     symbol.value = normalized
     name.value = displayName
+    stats.value = null
     void load()
+    void loadStats()
   }
 
   function setTimeframe(next: ChartTimeframeId) {
@@ -85,15 +105,14 @@ export const useChartStore = defineStore('chart', () => {
     candles,
     loading,
     error,
+    stats,
+    statsLoading,
     hasData,
     lastPrice,
     change,
     changePercent,
-    open,
-    high,
-    low,
-    volume,
     load,
+    loadStats,
     setSymbol,
     setTimeframe,
   }

@@ -206,6 +206,31 @@ export interface Candle {
   volume: number
 }
 
+/**
+ * Stock-info header stats for the Chart page (day stats + fundamentals). Day
+ * fields (`open`/`high`/`low`/`previousClose`/`volume`) come from Alpaca's
+ * snapshot (the same source `server/markets.ts` already uses); the rest are
+ * fundamentals only Finnhub's free tier carries — Alpaca has none of it.
+ */
+export interface StockStats {
+  symbol: string
+  open: number
+  high: number
+  low: number
+  previousClose: number
+  volume: number
+  /** 3-month average daily volume. */
+  avgVolume3Month?: number
+  weekHigh52?: number
+  weekLow52?: number
+  /** Market capitalization in USD. */
+  marketCap?: number
+  /** Trailing P/E ratio. */
+  peRatio?: number
+  /** Indicated annual dividend yield, as a percentage (e.g. `0.51` = 0.51%). */
+  dividendYield?: number
+}
+
 /** Candle resolution (bar width) requested from the data source. */
 export type ChartResolution = '5m' | '30m' | '1d' | '1w'
 

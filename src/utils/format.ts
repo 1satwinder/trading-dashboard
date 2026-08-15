@@ -38,6 +38,18 @@ export function formatCompact(value: number): string {
   return compactFmt.format(value)
 }
 
+const compactCurrencyFmt = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumFractionDigits: 2,
+})
+
+/** Compact currency for large amounts, e.g. `$3.42T` (used for market cap). */
+export function formatCompactCurrency(value: number): string {
+  return compactCurrencyFmt.format(value)
+}
+
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 
 /** Clock time from an ISO timestamp, e.g. `9:30 AM`. Empty when unparseable. */

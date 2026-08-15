@@ -404,6 +404,46 @@ decision is made. Keep them short.
 
 ---
 
+## ADR-023 — Chart page: symbol-info header sourced from Alpaca + Finnhub, and order-panel alignment fix
+
+- **Status:** Accepted (Polish)
+- **Context:** Two issues surfaced on the Chart page. First, `OrderPanel` looked
+  visually unaligned with the chart card: the symbol/price header lived inside the
+  *left* grid column above the chart card, so the order panel (the grid's other
+  column) started level with the header text rather than the chart card's top edge.
+  Second, the secondary Open/High/Low/Vol row was computed from whichever candles
+  happened to be loaded for the *selected timeframe* (`useChartStore`) — so switching
+  to `1Y` showed a year's open/high/low instead of today's, and there was no market
+  cap, 52-week range, P/E or dividend yield anywhere, despite `docs/05-features.md`
+  already claiming "key stats". Alpaca (already used for candles/markets/account) has
+  no fundamentals data at any tier — confirmed against its Market Data API docs — so
+  it can supply today's session (open/high/low/previous close/volume, via the same
+  `/v2/stocks/snapshots` shape `server/markets.ts` uses) but not 52-week range, market
+  cap, P/E or dividend yield. Finnhub's free tier does carry those via
+  `/stock/metric?metric=all` (Basic Financials), the same plan already used for search
+  and quotes.
+- **Decision:** Pulled the symbol header out of the two-column grid into its own
+  full-width `SymbolStatsHeader` component rendered above it, so the chart card and
+  `OrderPanel` now start at the same line; `OrderPanel` is also `lg:sticky` so it
+  stays in view while scrolling. `SymbolStatsHeader` shows the existing
+  candle-derived price/change (unchanged — intentionally timeframe-relative), then a
+  day-stats row and a fundamentals row (plus a 52-week range bar with a marker at the
+  current price) sourced from a new combined `/api/stats?symbol=` BFF endpoint:
+  `server/stats.ts` runs an Alpaca snapshot and a Finnhub metrics call in parallel and
+  merges them into one `StockStats` object, cached 30s. `useChartStore` fetches this
+  once per symbol change (not per timeframe change, since it's timeframe-independent)
+  and the old candle-derived `open`/`high`/`low`/`volume` computeds were removed now
+  that real stats replace them.
+- **Consequences:** The header now shows numbers a trading app is expected to have,
+  they're now always correct regardless of which timeframe tab is active, and the
+  order panel finally reads as aligned with the chart. The Finnhub metrics call is
+  fault-tolerant (`.catch` falls back to just the Alpaca day stats) so a Finnhub
+  hiccup only drops the fundamentals row, not the whole header. `market cap` and the
+  average-volume fields, which Finnhub reports in millions, are converted to plain
+  units in the mapping so the client only ever deals with real dollar/share figures.
+
+---
+
 ### Open decisions (not yet resolved)
 
 - Dedicated Home/Dashboard landing page vs landing on Watchlist.

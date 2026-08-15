@@ -21,6 +21,7 @@ import {
   placeOrder,
 } from './alpaca'
 import { fetchClock, fetchIndices, fetchMovers, fetchSectors } from './markets'
+import { fetchStockStats } from './stats'
 
 /**
  * Backend-for-frontend (BFF).
@@ -94,6 +95,18 @@ app.get('/api/candles', async (c) => {
 
   try {
     return c.json(await fetchBars(symbol, timeframe as ChartTimeframeId))
+  } catch (err) {
+    const { status, body } = fail(err)
+    return c.json(body, status as 400 | 429 | 500 | 502)
+  }
+})
+
+app.get('/api/stats', async (c) => {
+  const symbol = (c.req.query('symbol') ?? '').trim().toUpperCase()
+  if (!symbol) return c.json({ error: 'Missing required "symbol" query param.' }, 400)
+
+  try {
+    return c.json(await fetchStockStats(symbol))
   } catch (err) {
     const { status, body } = fail(err)
     return c.json(body, status as 400 | 429 | 500 | 502)

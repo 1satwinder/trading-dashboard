@@ -107,7 +107,7 @@ async function submitOrder() {
 
 <template>
   <aside
-    class="h-fit rounded-border border border-surface-200 bg-surface-0 p-4 dark:border-surface-800 dark:bg-surface-900"
+    class="h-fit self-start rounded-border border border-surface-200 bg-surface-0 p-4 lg:sticky lg:top-4 dark:border-surface-800 dark:bg-surface-900"
   >
     <!-- Buy / Sell -->
     <div class="grid grid-cols-2 gap-2">
