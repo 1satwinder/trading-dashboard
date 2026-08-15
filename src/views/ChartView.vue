@@ -94,7 +94,7 @@ watch(() => route.params.symbol, syncSymbol)
 </script>
 
 <template>
-  <section class="space-y-4">
+  <section class="flex flex-col gap-8">
     <!-- Header: symbol, price, day stats + fundamentals -->
     <SymbolStatsHeader />
 
