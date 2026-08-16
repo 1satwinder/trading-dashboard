@@ -11,9 +11,12 @@ import {
 
 /**
  * Symbol-info header for the Chart page (ADR-023): symbol + live price, then
- * two rows of stats — today's session (Alpaca) and fundamentals (Finnhub,
- * which is the only free provider here that carries them). Rendered full-width
- * above the chart/order-panel grid so it doesn't skew their alignment.
+ * a packed row of stat chips — today's session (Alpaca) and fundamentals
+ * (Finnhub, the only free provider here that carries them) — plus a 52-week
+ * range strip. Chips size to their content instead of stretching across a
+ * grid, so they stay close together rather than spreading out on wide
+ * screens. Rendered full-width above the chart/order-panel grid so it
+ * doesn't skew their alignment.
  */
 
 const chart = useChartStore()
@@ -34,6 +37,19 @@ function ratio(value: number | undefined): string {
 function percent(value: number | undefined): string {
   return typeof value === 'number' ? formatPercent(value) : '—'
 }
+
+/** Today's session (Alpaca) + fundamentals (Finnhub), as compact label/value chips. */
+const keyStats = computed(() => [
+  { label: 'Open', value: money(stats.value?.open) },
+  { label: 'High', value: money(stats.value?.high) },
+  { label: 'Low', value: money(stats.value?.low) },
+  { label: 'Prev Close', value: money(stats.value?.previousClose) },
+  { label: 'Volume', value: compact(stats.value?.volume) },
+  { label: 'Avg Vol (3M)', value: compact(stats.value?.avgVolume3Month) },
+  { label: 'Market Cap', value: compactMoney(stats.value?.marketCap) },
+  { label: 'P/E Ratio', value: ratio(stats.value?.peRatio) },
+  { label: 'Div Yield', value: percent(stats.value?.dividendYield) },
+])
 
 /** Where the current price sits between the 52-week low and high, 0–100. */
 const rangePercent = computed(() => {
@@ -65,67 +81,30 @@ const rangePercent = computed(() => {
       </span>
     </div>
 
-    <!-- Today's session (Alpaca) -->
+    <!-- Key stats: today's session (Alpaca) + fundamentals (Finnhub), packed left -->
     <div
-      class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-surface-200 pt-3 text-sm sm:grid-cols-3 lg:grid-cols-6 dark:border-surface-800"
+      class="mt-3 flex flex-wrap gap-x-6 gap-y-3 border-t border-surface-200 pt-3 text-sm dark:border-surface-800"
     >
-      <div>
-        <div class="text-muted-color">Open</div>
-        <div class="tabular-nums text-color">{{ money(stats?.open) }}</div>
-      </div>
-      <div>
-        <div class="text-muted-color">High</div>
-        <div class="tabular-nums text-color">{{ money(stats?.high) }}</div>
-      </div>
-      <div>
-        <div class="text-muted-color">Low</div>
-        <div class="tabular-nums text-color">{{ money(stats?.low) }}</div>
-      </div>
-      <div>
-        <div class="text-muted-color">Prev Close</div>
-        <div class="tabular-nums text-color">{{ money(stats?.previousClose) }}</div>
-      </div>
-      <div>
-        <div class="text-muted-color">Volume</div>
-        <div class="tabular-nums text-color">{{ compact(stats?.volume) }}</div>
-      </div>
-      <div>
-        <div class="text-muted-color">Avg Vol (3M)</div>
-        <div class="tabular-nums text-color">{{ compact(stats?.avgVolume3Month) }}</div>
+      <div v-for="stat in keyStats" :key="stat.label" class="min-w-[5.5rem]">
+        <div class="text-muted-color">{{ stat.label }}</div>
+        <div class="tabular-nums text-color">{{ stat.value }}</div>
       </div>
     </div>
 
-    <!-- Fundamentals (Finnhub) -->
-    <div
-      class="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-surface-200 pt-3 text-sm dark:border-surface-800"
-    >
-      <div>
-        <div class="text-muted-color">Market Cap</div>
-        <div class="tabular-nums text-color">{{ compactMoney(stats?.marketCap) }}</div>
+    <!-- 52-week range -->
+    <div class="mt-3 border-t border-surface-200 pt-3 text-sm dark:border-surface-800">
+      <div class="flex items-center justify-between text-muted-color">
+        <span>52W Range</span>
+        <span class="tabular-nums">
+          {{ money(stats?.weekLow52) }} – {{ money(stats?.weekHigh52) }}
+        </span>
       </div>
-      <div>
-        <div class="text-muted-color">P/E Ratio</div>
-        <div class="tabular-nums text-color">{{ ratio(stats?.peRatio) }}</div>
-      </div>
-      <div>
-        <div class="text-muted-color">Div Yield</div>
-        <div class="tabular-nums text-color">{{ percent(stats?.dividendYield) }}</div>
-      </div>
-
-      <div class="min-w-48 flex-1">
-        <div class="flex items-center justify-between text-muted-color">
-          <span>52W Range</span>
-          <span class="tabular-nums">
-            {{ money(stats?.weekLow52) }} – {{ money(stats?.weekHigh52) }}
-          </span>
-        </div>
-        <div class="relative mt-2 h-1.5 rounded-full bg-surface-100 dark:bg-surface-800">
-          <div
-            v-if="rangePercent !== null"
-            class="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface-0 bg-primary dark:border-surface-900"
-            :style="{ left: `${rangePercent}%` }"
-          />
-        </div>
+      <div class="relative mt-2 h-1.5 rounded-full bg-surface-100 dark:bg-surface-800">
+        <div
+          v-if="rangePercent !== null"
+          class="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface-0 bg-primary dark:border-surface-900"
+          :style="{ left: `${rangePercent}%` }"
+        />
       </div>
     </div>
   </div>
