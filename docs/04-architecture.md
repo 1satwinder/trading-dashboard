@@ -43,10 +43,14 @@ account/positions/history + orders:
 
 ```
 server/                  # backend-for-frontend (BFF) — Hono
-├── index.ts             # Hono app + node-server: /api/health, /api/search, /api/quotes,
-│                        #   /api/candles, /api/markets/{clock,indices,movers,sectors},
+├── app.ts               # shared Hono app (runtime-agnostic): /api/health, /api/search,
+│                        #   /api/quotes, /api/candles, /api/stats,
+│                        #   /api/markets/{clock,indices,movers,sectors},
 │                        #   /api/account, /api/positions, /api/portfolio/history,
-│                        #   /api/orders (GET + POST), /api/orders/:id (GET + DELETE)
+│                        #   /api/orders (GET + POST), /api/orders/:id (GET + DELETE),
+│                        #   /api/auth/{login,logout,session}
+├── index.ts             # local-dev entry point (@hono/node-server + dotenv)
+├── auth.ts              # passcode → signed session cookie + requireAuth guard (ADR-024)
 ├── finnhub.ts           # server-side Finnhub client + mapping (search + quotes; holds the REST key)
 ├── alpacaClient.ts      # shared Alpaca transport: hosts, credentials, alpacaRequest(), num()
 ├── alpaca.ts            # candles (data host) + account/positions/history/orders (trading host)
@@ -59,6 +63,11 @@ server/                  # backend-for-frontend (BFF) — Hono
 Orders are the only **write** path. Alpaca's `403` (insufficient buying power) and `422`
 (bad params) keep their status and message so the UI can show the real reason, and every
 write invalidates the account/positions/history/orders cache entries (ADR-018).
+
+Those two writes are also the only **authenticated** routes: `requireAuth` from `auth.ts`
+rejects them with `401` unless the request carries a valid session cookie, issued by
+`POST /api/auth/login` in exchange for the `APP_PASSCODE`. Every read stays public so the
+deployed demo is fully browsable without signing in (ADR-024).
 
 Alpaca spans **two hosts**: market data (`data.alpaca.markets`) for candles, snapshots and
 screeners, and the Trading API (`paper-api.alpaca.markets`) for account, positions, orders,
@@ -93,6 +102,7 @@ so the browser makes same-origin calls and never sees the provider keys.
 | `usePortfolioStore` | Holdings, cash, derived P/L (mock → Alpaca positions) |
 | `useMarketsStore` | Index cards, movers and sectors per region, plus the market clock (polls only while open) |
 | `useOrdersStore` | Order placement, cancellation, and status polling (via BFF) |
+| `useAuthStore` | Mirrors the (HttpOnly) session cookie's state; owns the sign-in prompt |
 
 > A `useUiStore` for layout state is what makes the responsive sidebar ↔ bottom-nav
 > toggle clean and centralized.
@@ -253,5 +263,5 @@ Alpaca. The frontend only ever calls our own `/api/*`. **Realized so far:** symb
 + quotes (Finnhub), **chart candles (Alpaca IEX)**, **account + positions + portfolio
 history (Alpaca Trading, Phases 7–8)**, and **paper order placement/cancellation (Phase 9)**
 all go through the Hono BFF. **Still frontend-direct:** the live trade WebSocket (revisited
-at deploy). **Open before deploy:** the BFF is unauthenticated, which is fine locally but
-would expose the shared paper account once hosted (ADR-018).
+at deploy). **Deployed:** the two order writes are gated by a passcode session cookie so a
+public URL can't trade the shared paper account; reads stay open (ADR-024).

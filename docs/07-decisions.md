@@ -369,7 +369,8 @@ decision is made. Keep them short.
   - **BFF auth gap accepted, not fixed.** `/api/orders` (place/cancel) and account/positions
     remain unauthenticated in production, same as local dev. It's a **paper** account
     (fake money, ADR-012), so the acceptable-risk case from ADR-018 was taken as-is rather
-    than adding a shared secret or rate limit.
+    than adding a shared secret or rate limit. _(Superseded for the write routes by
+    ADR-024, which gates order placement and cancellation behind a passcode session.)_
 - **Consequences:** The frontend/BFF split needed no rearchitecting — only an extra thin
   entry point — because the service-layer seam (ADR-010) and the shared `server/app.ts`
   kept provider logic in one place. Two honest, documented gaps ship to production: the
@@ -441,6 +442,55 @@ decision is made. Keep them short.
   hiccup only drops the fundamentals row, not the whole header. `market cap` and the
   average-volume fields, which Finnhub reports in millions, are converted to plain
   units in the mapping so the client only ever deals with real dollar/share figures.
+
+---
+
+## ADR-024 — Auth: a passcode session guards the order writes; every read stays public
+
+- **Status:** Accepted (Polish)
+- **Context:** ADR-021 shipped the BFF to Netlify unauthenticated, accepting that anyone
+  with the URL could place or cancel orders on the shared paper account. That's survivable
+  because the money is fake (ADR-012), but a visitor can still empty the portfolio, and a
+  trading app with a wide-open write path is a bad look on a portfolio piece. The obvious
+  fix — a real auth provider (Netlify Identity, Clerk, Auth0, Supabase) — solves a problem
+  this app doesn't have: there is exactly **one** Alpaca paper account and no user model,
+  so per-user sign-up would create accounts that all read and write the same portfolio.
+  Netlify Identity was the closest fit (it's native to the host, and its planned
+  deprecation was reversed in Feb 2026), but its server-side helpers need `netlify dev`
+  locally — replacing the current Vite + `tsx watch` loop — and calling them inside
+  `server/app.ts` would couple the deliberately runtime-agnostic app to Netlify, undoing
+  the property ADR-021 was built around.
+- **Decision:** Gate on the **write/read** boundary rather than the "trading vs market
+  data" one, with a single owner passcode:
+  - **Only `POST /api/orders` and `DELETE /api/orders/:id` require a session.** Account,
+    positions, portfolio history and order history stay public — they're read-only views
+    of a fake-money account with no personal data, and they're what makes the deployed
+    demo worth looking at. Locking them would leave a visitor on empty pages.
+  - **Passcode → signed cookie, no dependencies.** `POST /api/auth/login` compares the
+    submitted value against `APP_PASSCODE` with `timingSafeEqual`, then issues a 7-day
+    HS256 JWT (signed with `SESSION_SECRET`, carrying only `exp`) as an `HttpOnly`,
+    `SameSite=Lax` cookie. Hono already ships `hono/jwt`, `hono/cookie` and
+    `timingSafeEqual`, so nothing was added to `package.json`. A stateless token matters
+    on Netlify, where consecutive requests can hit different function instances — the same
+    reason `cache.ts` is per-instance.
+  - **`Secure` is derived from the request scheme**, not `NODE_ENV`, keeping `server/auth.ts`
+    free of runtime checks: `Secure` cookies are dropped over the plain-HTTP dev server but
+    always set in production.
+  - **The UI degrades to read-only rather than hiding.** `OrderPanel`'s submit button
+    becomes "Sign in to trade", the Orders page drops its per-row cancel button, and the
+    top-bar avatar shows a lock. The user menu's dead `Profile` item was removed (there is
+    no profile) and `Settings` finally routes somewhere. A `401` on any write flips
+    `useAuthStore` back to signed out and reopens the prompt, so an expired cookie
+    self-corrects mid-session.
+- **Consequences:** The hole that mattered is closed — a stranger can browse everything but
+  can't touch the account — for one new server module and no new dependencies. The cost is
+  that the passcode is private, so a recruiter can never place a trade themselves; the
+  order panel is a locked shop window. Two gaps remain open and are deliberately not
+  addressed here: the public read endpoints are still an unmetered proxy to the Finnhub and
+  Alpaca quotas (a rate limit would be per-instance on Netlify, hence approximate), and the
+  live WebSocket still carries `VITE_FINNHUB_API_KEY` in the bundle (ADR-015/021). This is
+  auth scoped to the actual risk, not a user system: if the app ever needs per-user
+  watchlists or its own Alpaca sub-accounts, this gets replaced rather than extended.
 
 ---
 

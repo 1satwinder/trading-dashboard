@@ -29,9 +29,18 @@ import type {
  * This file stays the
  * seam: stores/components call these functions and don't care where the data comes
  * from. The live WebSocket remains frontend-direct (see `marketStream.ts` + ADR-015).
+ *
+ * Reads are public; placing and cancelling orders need a session cookie issued by
+ * `/api/auth/login` (see ADR-024).
  */
 
 class MarketDataError extends Error {}
+
+/**
+ * The BFF refused a write because there's no valid session — distinct from a
+ * rejected order so callers can prompt for sign-in instead of showing an error.
+ */
+export class AuthRequiredError extends MarketDataError {}
 
 /**
  * Fetch JSON from the BFF, mapping failures to friendly messages for the UI.
@@ -48,6 +57,9 @@ async function api<T>(path: string, init: { method?: string; body?: unknown } = 
       method,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
+      // The session cookie rides along on same-origin calls (dev proxy + Netlify
+      // redirect both keep `/api` same-origin); stated here rather than implied.
+      credentials: 'same-origin',
     })
   } catch {
     throw new MarketDataError('Network error contacting the market-data service.')
@@ -55,6 +67,9 @@ async function api<T>(path: string, init: { method?: string; body?: unknown } = 
 
   if (res.status === 429) {
     throw new MarketDataError('Rate limit reached. Please wait a moment and try again.')
+  }
+  if (res.status === 401) {
+    throw new AuthRequiredError(await errorMessage(res))
   }
   if (!res.ok) {
     throw new MarketDataError(await errorMessage(res))
@@ -74,6 +89,27 @@ async function errorMessage(res: Response): Promise<string> {
     // Non-JSON body — fall through.
   }
   return `Market-data request failed (${res.status}).`
+}
+
+// ---- Auth (session for the order writes — ADR-024) -------------------------
+
+interface AuthSession {
+  authenticated: boolean
+}
+
+/** Whether the browser still holds a valid session cookie (checked on boot). */
+export function fetchSession(): Promise<AuthSession> {
+  return api<AuthSession>('/api/auth/session')
+}
+
+/** Exchange the passcode for a session cookie; throws when it's wrong. */
+export function signIn(passcode: string): Promise<AuthSession> {
+  return api<AuthSession>('/api/auth/login', { method: 'POST', body: { passcode } })
+}
+
+/** Drop the session cookie. */
+export function signOut(): Promise<AuthSession> {
+  return api<AuthSession>('/api/auth/logout', { method: 'POST' })
 }
 
 // ---- Symbol search ---------------------------------------------------------

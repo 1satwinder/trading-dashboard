@@ -11,6 +11,8 @@ defineProps<{
   orders: Order[]
   /** Id of the order currently being canceled, to show a spinner on its button. */
   cancelingId?: string | null
+  /** Cancelling is a write, so it needs a session (ADR-024). Hidden when absent. */
+  canCancel?: boolean
   emptyMessage?: string
 }>()
 
@@ -154,7 +156,7 @@ function submittedLabel(submittedAt: string): string {
     <Column header="" body-class="w-12">
       <template #body="{ data }">
         <Button
-          v-if="isOrderOpen(data.status)"
+          v-if="canCancel && isOrderOpen(data.status)"
           icon="pi pi-times"
           text
           rounded

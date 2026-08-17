@@ -9,6 +9,7 @@ import type {
   TicketTimeInForce,
 } from '../src/types/market'
 import { ProviderError } from './errors'
+import { clearSession, createSession, hasSession, requireAuth, verifyPasscode } from './auth'
 import { fetchQuotes, searchSymbols } from './finnhub'
 import {
   cancelOrder,
@@ -36,6 +37,8 @@ import { fetchStockStats } from './stats'
  * In dev, Vite proxies `/api` here (see vite.config.ts), so the browser makes
  * same-origin calls and never sees the keys. The live WebSocket stays
  * frontend-direct (ADR-015/ADR-021); order placement is server-side only (ADR-018).
+ * The two order **writes** are additionally gated by a passcode session cookie
+ * (`auth.ts`); every read stays public so the demo is browsable (ADR-024).
  */
 
 export const app = new Hono()
@@ -57,6 +60,40 @@ const CHART_TIMEFRAME_IDS: ReadonlySet<string> = new Set<ChartTimeframeId>([
 ])
 
 app.get('/api/health', (c) => c.json({ ok: true }))
+
+// ---- Auth (gates the order writes only — ADR-024) --------------------------
+
+app.post('/api/auth/login', async (c) => {
+  let payload: unknown
+  try {
+    payload = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400)
+  }
+
+  const passcode =
+    typeof payload === 'object' && payload !== null
+      ? (payload as Record<string, unknown>).passcode
+      : undefined
+
+  try {
+    if (!(await verifyPasscode(passcode))) {
+      return c.json({ error: 'Incorrect passcode.' }, 401)
+    }
+    await createSession(c)
+    return c.json({ authenticated: true })
+  } catch (err) {
+    const { status, body } = fail(err)
+    return c.json(body, status as 500)
+  }
+})
+
+app.post('/api/auth/logout', (c) => {
+  clearSession(c)
+  return c.json({ authenticated: false })
+})
+
+app.get('/api/auth/session', async (c) => c.json({ authenticated: await hasSession(c) }))
 
 app.get('/api/search', async (c) => {
   const q = c.req.query('q') ?? ''
@@ -263,7 +300,7 @@ function parseOrderRequest(input: unknown): { order?: OrderRequest; error?: stri
   }
 }
 
-app.post('/api/orders', async (c) => {
+app.post('/api/orders', requireAuth, async (c) => {
   let payload: unknown
   try {
     payload = await c.req.json()
@@ -309,7 +346,7 @@ app.get('/api/orders/:id', async (c) => {
   }
 })
 
-app.delete('/api/orders/:id', async (c) => {
+app.delete('/api/orders/:id', requireAuth, async (c) => {
   const id = c.req.param('id')
   try {
     await cancelOrder(id)

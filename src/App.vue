@@ -6,10 +6,14 @@ import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
 import AppBottomNav from '@/components/layout/AppBottomNav.vue'
 import { useBreakpoint } from '@/composables/useBreakpoint'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
 const { isDesktop } = useBreakpoint()
 const ui = useUiStore()
+
+// The session lives in an HttpOnly cookie, so ask the BFF whether it's still valid.
+useAuthStore().checkSession()
 
 // Collapse the sidebar to icons on tablet widths; expand on desktop.
 // The manual toggle in the top bar overrides this until the next breakpoint change.

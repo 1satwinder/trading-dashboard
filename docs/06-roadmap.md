@@ -205,4 +205,11 @@ _News was dropped from scope (ADR-019); the nav slot it occupied is now Orders._
       Netlify's env vars, never committed. See ADR-021 for the two things deliberately
       **not** changed for deploy — the WS stays frontend-direct and the BFF stays
       unauthenticated — and why.)_
+- [x] Close the auth gap on the **write** endpoints.
+      _(`server/auth.ts`: `POST /api/auth/login` swaps `APP_PASSCODE` for a signed HttpOnly
+      session cookie (Hono's `jwt`/`cookie` helpers, no new deps), and a `requireAuth`
+      guard 401s `POST /api/orders` + `DELETE /api/orders/:id`. Every read stays public so
+      the demo is fully browsable; signed out, the order panel shows "Sign in to trade" and
+      the Orders page hides cancel. `APP_PASSCODE` + `SESSION_SECRET` must be set in
+      Netlify. See ADR-024.)_
 - [ ] Write the project README (screenshots, live demo, setup).

@@ -7,12 +7,15 @@ import Dialog from 'primevue/dialog'
 import { useToast } from 'primevue/usetoast'
 import type { OrderSide, TicketOrderType, TicketTimeInForce } from '@/types/market'
 import { useOrdersStore } from '@/stores/orders'
+import { useAuthStore } from '@/stores/auth'
+import { AuthRequiredError } from '@/services/marketData'
 import { formatCurrency } from '@/utils/format'
 
 const props = defineProps<{ symbol: string; price: number }>()
 
 const toast = useToast()
 const orders = useOrdersStore()
+const auth = useAuthStore()
 
 const side = ref<OrderSide>('buy')
 const orderType = ref<TicketOrderType>('market')
@@ -43,11 +46,12 @@ const estimatedCost = computed(() => Math.max(0, (quantity.value || 0) * effecti
 
 const submitLabel = computed(() => `Review ${side.value === 'buy' ? 'Buy' : 'Sell'} Order`)
 
-const orderNote = computed(() =>
-  orderType.value === 'market'
+const orderNote = computed(() => {
+  if (!auth.isAuthenticated) return 'Read-only demo — sign in to place paper orders.'
+  return orderType.value === 'market'
     ? 'Market orders are executed at the best available price.'
-    : `${orderType.value === 'limit' ? 'Limit' : 'Stop'} orders execute only when your price is reached.`,
-)
+    : `${orderType.value === 'limit' ? 'Limit' : 'Stop'} orders execute only when your price is reached.`
+})
 
 const reviewVisible = ref(false)
 
@@ -95,6 +99,13 @@ async function submitOrder() {
       life: 4000,
     })
   } catch (e) {
+    // The cookie can expire between opening the ticket and confirming it.
+    if (e instanceof AuthRequiredError) {
+      auth.markSignedOut()
+      reviewVisible.value = false
+      auth.openPrompt()
+      return
+    }
     toast.add({
       severity: 'error',
       summary: 'Order rejected',
@@ -201,11 +212,21 @@ async function submitOrder() {
     </div>
 
     <Button
+      v-if="auth.isAuthenticated"
       :label="submitLabel"
       class="mt-4 w-full"
       :severity="side === 'buy' ? 'success' : 'danger'"
       :loading="orders.submitting"
       @click="reviewOrder"
+    />
+    <Button
+      v-else
+      label="Sign in to trade"
+      icon="pi pi-lock"
+      class="mt-4 w-full"
+      severity="secondary"
+      outlined
+      @click="auth.openPrompt()"
     />
 
     <p class="mt-3 flex items-start gap-1.5 text-xs text-muted-color">

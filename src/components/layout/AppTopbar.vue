@@ -1,24 +1,45 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
+import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Avatar from 'primevue/avatar'
 import Menu from 'primevue/menu'
 import type { MenuMethods } from 'primevue/menu'
 import SymbolSearch from '@/components/layout/SymbolSearch.vue'
+import SignInDialog from '@/components/layout/SignInDialog.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
+const auth = useAuthStore()
+const router = useRouter()
 
 /** Full-screen search overlay for mobile (`<sm`), where the inline bar is hidden. */
 const mobileSearchOpen = ref(false)
 
 const userMenu = useTemplateRef<MenuMethods>('userMenu')
-const userMenuItems = [
-  { label: 'Profile', icon: 'pi pi-user' },
-  { label: 'Settings', icon: 'pi pi-cog' },
-  { separator: true },
-  { label: 'Sign out', icon: 'pi pi-sign-out' },
-]
+
+/**
+ * There are no user accounts — a single passcode unlocks trading (ADR-024) — so
+ * the menu offers sign in/out and Settings, and no Profile.
+ */
+const userMenuItems = computed(() => {
+  const settings = {
+    label: 'Settings',
+    icon: 'pi pi-cog',
+    command: () => router.push({ name: 'settings' }),
+  }
+
+  if (!auth.isAuthenticated) {
+    return [{ label: 'Sign in', icon: 'pi pi-sign-in', command: () => auth.openPrompt() }, settings]
+  }
+
+  return [
+    settings,
+    { separator: true },
+    { label: 'Sign out', icon: 'pi pi-sign-out', command: () => auth.logOut() },
+  ]
+})
 
 function toggleUserMenu(event: Event) {
   userMenu.value?.toggle(event)
@@ -70,10 +91,12 @@ function toggleUserMenu(event: Event) {
         @click="ui.toggleTheme()"
       />
       <button class="ml-1 rounded-full" aria-label="User menu" @click="toggleUserMenu">
-        <Avatar icon="pi pi-user" shape="circle" />
+        <Avatar :icon="auth.isAuthenticated ? 'pi pi-user' : 'pi pi-lock'" shape="circle" />
       </button>
       <Menu ref="userMenu" :model="userMenuItems" popup />
     </div>
+
+    <SignInDialog />
 
     <!-- Mobile search overlay (covers the bar; closes on select or back) -->
     <div

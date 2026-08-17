@@ -64,8 +64,11 @@ src/
 └── main.ts, App.vue
 
 server/             # backend-for-frontend (Hono) — Phase 6
-├── index.ts        # Hono app + node-server: /api/health, /api/search, /api/quotes, /api/candles,
-│                   #   /api/markets/*, /api/account, /api/positions, /api/portfolio/history, /api/orders
+├── app.ts          # shared Hono app: /api/health, /api/search, /api/quotes, /api/candles, /api/stats,
+│                   #   /api/markets/*, /api/account, /api/positions, /api/portfolio/history,
+│                   #   /api/orders, /api/auth/{login,logout,session}
+├── index.ts        # local-dev entry point (@hono/node-server + dotenv)
+├── auth.ts         # passcode → signed session cookie + requireAuth on the order writes (ADR-024)
 ├── finnhub.ts      # server-side Finnhub client + mapping (search + quotes; owns FINNHUB_API_KEY)
 ├── alpacaClient.ts # shared Alpaca transport: hosts, credentials, alpacaRequest(); owns ALPACA_* keys
 ├── alpaca.ts       # chart candles (data host) + account/positions/history/orders (trading host)
@@ -80,8 +83,9 @@ data source can evolve without touching views. Search + quotes (Finnhub), chart 
 the Markets page (Alpaca IEX) all go through the **Hono BFF** (`server/`), which owns the
 provider keys; Vite proxies `/api` → the BFF in dev. External providers: **Alpaca** (chart
 candles, markets, and account/positions/history/paper orders — server-side only) +
-**Finnhub** (symbol search/quotes + live WS). Single shared paper account, no auth.
-See ADR-009/010/012/015/016/020.
+**Finnhub** (symbol search/quotes + live WS). Single shared paper account, no user accounts:
+placing and cancelling orders need a passcode session cookie, every read is public.
+See ADR-009/010/012/015/016/020/024.
 
 Real-time: the watchlist streams live prices over **one shared Finnhub WebSocket**
 (`marketStream`). `useWatchlistStore` owns the `connect()`/`disconnect()` lifecycle,
@@ -189,8 +193,8 @@ Phase 9 (Alpaca paper trading) — done: the BFF serves `POST /api/orders`, `GET
 their status, and writes `invalidate()` the account/positions/history/orders caches so fills
 land immediately. `OrderPanel` gained a time-in-force select + review-and-confirm dialog and
 submits through `useOrdersStore`, polling every ~5s while any order is working (no
-trade-updates stream — ADR-018). Note the BFF is unauthenticated, so deploying it needs a
-guard.
+trade-updates stream — ADR-018). The two writes are now the only guarded routes (see Auth
+below).
 
 Orders live on their **own page** (`/orders`, `OrdersView` + presentational `OrdersTable`)
 with All/Open/Filled/Canceled filter tabs — they started as a card under Holdings, but two
@@ -210,5 +214,18 @@ by penny stocks, warrants and geared single-stock ETFs, so movers are over-fetch
 and filtered on price, move size and a 24h-cached `/v2/assets` lookup. Shared Alpaca transport
 now lives in `server/alpacaClient.ts`.
 
-**Next:** Polish (Phase 11), Deploy (Phase 12); plus the deferred WebSocket-behind-BFF item.
-See `docs/06-roadmap.md` for authoritative status.
+Auth (Polish) — done, deliberately minimal: there are no user accounts, just one owner
+passcode. `POST /api/auth/login` compares it against `APP_PASSCODE` (timing-safe) and issues
+a 7-day HS256 JWT as an `HttpOnly` cookie signed with `SESSION_SECRET`; `requireAuth` in
+`server/auth.ts` 401s **only** `POST /api/orders` and `DELETE /api/orders/:id`. Every read
+(market data, account, positions, history, order list) stays public so the deployed demo is
+fully browsable. Client side: `useAuthStore` mirrors the cookie's state (checked once on boot
+in `App.vue`), `SignInDialog` collects the passcode, `OrderPanel` shows "Sign in to trade" and
+`OrdersTable` hides cancel when signed out, and a `401` on any write (`AuthRequiredError`)
+flips the store back to signed out and reopens the prompt. Netlify Identity and hosted
+providers were rejected — one shared Alpaca account makes per-user sign-up meaningless, and
+Identity's server helpers would force `netlify dev` locally. See ADR-024.
+
+**Next:** finish Polish (Phase 11: skeletons, a11y pass, responsive QA) and the project
+README; plus the deferred WebSocket-behind-BFF item and the unmetered-provider-quota gap on
+the public read endpoints. See `docs/06-roadmap.md` for authoritative status.

@@ -9,8 +9,11 @@ import OrdersTable from '@/components/orders/OrdersTable.vue'
 import type { Order } from '@/types/market'
 import { isOrderOpen } from '@/types/market'
 import { useOrdersStore } from '@/stores/orders'
+import { useAuthStore } from '@/stores/auth'
+import { AuthRequiredError } from '@/services/marketData'
 
 const orders = useOrdersStore()
+const auth = useAuthStore()
 const toast = useToast()
 
 type FilterId = 'all' | 'open' | 'filled' | 'canceled'
@@ -85,6 +88,12 @@ async function cancel(order: Order) {
       life: 4000,
     })
   } catch (e) {
+    // The session can expire while the page sits open on a working order.
+    if (e instanceof AuthRequiredError) {
+      auth.markSignedOut()
+      auth.openPrompt()
+      return
+    }
     toast.add({
       severity: 'error',
       summary: 'Could not cancel',
@@ -155,6 +164,7 @@ onUnmounted(() => {
         v-else
         :orders="visibleOrders"
         :canceling-id="orders.cancelingId"
+        :can-cancel="auth.isAuthenticated"
         :empty-message="emptyMessage"
         @cancel="cancel"
       />
