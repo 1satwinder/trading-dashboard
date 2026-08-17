@@ -69,7 +69,6 @@ function toggleUserMenu(event: Event) {
         :title="ui.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
         @click="ui.toggleTheme()"
       />
-      <Button icon="pi pi-bell" text rounded severity="secondary" aria-label="Notifications" />
       <button class="ml-1 rounded-full" aria-label="User menu" @click="toggleUserMenu">
         <Avatar icon="pi pi-user" shape="circle" />
       </button>
