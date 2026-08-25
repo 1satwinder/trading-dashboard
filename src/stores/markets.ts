@@ -44,6 +44,15 @@ export const useMarketsStore = defineStore('markets', () => {
   const isMarketOpen = computed(() => clock.value?.isOpen ?? false)
 
   /**
+   * Skeletons only while a section has nothing to show — the 60s poll refreshes
+   * in place, and a region switch clears its two sections so they fall back here
+   * instead of captioning US rows as Canadian ones.
+   */
+  const indicesInitialLoading = computed(() => indicesLoading.value && indices.value.length === 0)
+  const moversInitialLoading = computed(() => moversLoading.value && !movers.value)
+  const sectorsInitialLoading = computed(() => sectorsLoading.value && sectors.value.length === 0)
+
+  /**
    * Background refreshes pass `silent` so the page doesn't flash spinners every
    * minute; only the first load and the Refresh button show progress.
    */
@@ -115,6 +124,11 @@ export const useMarketsStore = defineStore('markets', () => {
   function setRegion(next: MarketRegion) {
     if (next === region.value) return
     region.value = next
+    // Drop the outgoing region's rows: the headings above them already say
+    // "Canadian large caps" / "the whole US market", so leaving them up would
+    // label one region's movers with the other's scope.
+    movers.value = null
+    sectors.value = []
     void Promise.all([loadMovers(), loadSectors()])
   }
 
@@ -146,12 +160,15 @@ export const useMarketsStore = defineStore('markets', () => {
     isMarketOpen,
     indices,
     indicesLoading,
+    indicesInitialLoading,
     indicesError,
     movers,
     moversLoading,
+    moversInitialLoading,
     moversError,
     sectors,
     sectorsLoading,
+    sectorsInitialLoading,
     sectorsError,
     load,
     loadIndices,

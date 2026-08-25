@@ -123,18 +123,69 @@ utilities (`text-buy`, `bg-sell`, `text-profit`, `text-loss`, `text-up`, `bg-dow
 ```css
 @theme {
   --color-up: #16c784; /* source of truth: positive / price increase */
-  --color-down: #ea3943; /* source of truth: negative / price decrease */
+  --color-down: #ec4d56; /* source of truth: negative / price decrease */
 
   --color-buy: var(--color-up);
   --color-sell: var(--color-down);
   --color-profit: var(--color-up);
   --color-loss: var(--color-down);
+
+  /* Label colour for text sitting *on* a bg-buy / bg-sell fill. */
+  --color-buy-contrast: #0e1117;
+  --color-sell-contrast: #0e1117;
+}
+
+/* Light theme re-tones the pair; see "Contrast" below. */
+:root:not(.app-dark) {
+  --color-up: #0d774f;
+  --color-down: #c73039;
+
+  --color-buy-contrast: #ffffff;
+  --color-sell-contrast: #ffffff;
 }
 ```
 
 `up` / `down` are the single source of truth; `buy/sell/profit/loss` are **aliases**
 so they can never drift apart — change one hex and everything updates. Use these
 semantic classes (e.g. `text-profit`) in views instead of raw `text-green-500`.
+
+#### Contrast: why the pair is theme-aware
+
+A green vivid enough for near-black surfaces is unreadable on white. The original single
+pair (`#16c784` / `#ea3943`) measured **2.20:1** for green text on a light card — under
+half the 4.5:1 AA floor — and the same 2.20:1 for the white label on a `bg-buy` fill. So
+each theme gets its own tone, overridden on `:root:not(.app-dark)`:
+
+| Foreground on background                 |   Dark |  Light |
+| ---------------------------------------- | -----: | -----: |
+| `text-up` on a card                      | 7.86:1 | 5.57:1 |
+| `text-down` on a card                    | 4.75:1 | 5.37:1 |
+| `text-buy-contrast` on a `bg-buy` fill   | 8.58:1 | 5.57:1 |
+| `text-sell-contrast` on a `bg-sell` fill | 5.19:1 | 5.37:1 |
+
+Overriding the **tokens** rather than adding light-mode utilities at each call site buys
+three things for free: `buy`/`sell`/`profit`/`loss` follow because they alias `up`/`down`;
+the charts follow because they read the tokens through `getComputedStyle` on a `ui.isDark`
+watcher; and the sector heatmap follows because its tints are opacity modifiers on the
+same tokens.
+
+The `*-contrast` tokens exist because the fill is now theme-dependent, so a fixed label
+colour can't work — the dark theme's mint needs a near-black label, the light theme's
+forest green needs white. They are deliberately **not** aliased to `up`/`down`: they're
+the inverse of the fill, not the same value.
+
+Two related constraints worth knowing before restyling anything:
+
+- **Text on a tinted fill.** `text-muted-color` is only 4.8:1 on a plain light card, so
+  any tint underneath drops it below AA. Hence `SectorHeatmap` labels use body text and
+  its top shade is capped at 40% opacity, and the order ticket's resting Buy/Sell label
+  is `surface-600` rather than muted.
+- **Aura's light accent is too light for a tint.** `primary.500` as a label on the
+  `bg-primary/15` tint the active nav item uses is 3.74:1, so the preset shifts the light
+  scheme's primary/hover/active one step down the ramp (600/700/800).
+
+Colour is also never the sole carrier of meaning — every price is signed or arrowed — so
+WCAG 1.4.1 holds independently of these ratios. See ADR-025.
 
 ### Convention: single source of truth
 

@@ -57,6 +57,29 @@ export const XtradingPreset = definePreset(Aura, {
           hoverColor: '#e6edf3',
         },
       },
+      light: {
+        // Aura's light scheme puts the accent at primary.500 (#2F6EF0), which is
+        // 3.74:1 as a label on the `bg-primary/15` tint the active nav item uses
+        // — under the 4.5:1 AA floor. Shifting the whole trio one step down the
+        // ramp takes that to 4.92:1 and keeps the hover/active progression.
+        primary: {
+          color: '{primary.600}',
+          hoverColor: '{primary.700}',
+          activeColor: '{primary.800}',
+        },
+      },
+    },
+  },
+  components: {
+    // Aura's resting label is text-muted (slate.500), which is 4.34:1 on the
+    // SelectButton's own slate.100 track. surface.600 clears AA and still steps
+    // cleanly into the existing slate.700 hover colour.
+    togglebutton: {
+      colorScheme: {
+        light: {
+          root: { color: '{surface.600}' },
+        },
+      },
     },
   },
 })

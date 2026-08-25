@@ -49,6 +49,9 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   const items = ref<Quote[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  /** True once the first fetch has settled, so refreshes don't show skeletons. */
+  const hasLoaded = ref(false)
+  const initialLoading = computed(() => loading.value && !hasLoaded.value)
 
   /** Live connection status of the streaming feed. */
   const streamStatus = ref<StreamStatus>('idle')
@@ -129,6 +132,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   async function load() {
     if (entries.value.length === 0) {
       items.value = []
+      hasLoaded.value = true
       return
     }
     loading.value = true
@@ -139,6 +143,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
       error.value = e instanceof Error ? e.message : 'Failed to load watchlist'
     } finally {
       loading.value = false
+      hasLoaded.value = true
     }
   }
 
@@ -171,6 +176,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     entries,
     items,
     loading,
+    initialLoading,
     error,
     streamStatus,
     isLive,

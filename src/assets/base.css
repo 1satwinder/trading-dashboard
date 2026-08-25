@@ -35,6 +35,42 @@ body,
   min-height: 100vh;
 }
 
+/*
+ * Skip link: parked off-screen, slides in when tabbed to. Written out rather
+ * than composed from `sr-only` + `focus:not-sr-only`, because `not-sr-only`
+ * resets `position: static` and then fights the `absolute` the visible state
+ * needs — which of the two wins comes down to Tailwind's emission order.
+ * Paint (colour, radius, padding) still comes from utilities on the element.
+ */
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 60;
+  transform: translateY(-250%);
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/*
+ * Every animation in the app is decorative — the price-tick flash, the live
+ * pulse, the sidebar width transition — so honour the OS "reduce motion"
+ * setting globally rather than opting out component by component.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 body {
   background-color: var(--xt-bg);
   color: var(--xt-text);

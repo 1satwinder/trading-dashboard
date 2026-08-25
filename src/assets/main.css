@@ -25,10 +25,41 @@
  */
 @theme {
   --color-up: #16c784;
-  --color-down: #ea3943;
+  --color-down: #ec4d56;
 
   --color-buy: var(--color-up);
   --color-sell: var(--color-down);
   --color-profit: var(--color-up);
   --color-loss: var(--color-down);
+
+  /*
+   * Label color to sit *on top of* a bg-buy / bg-sell fill. Needed because the
+   * fills are theme-aware (below): a fixed white label is 2.2:1 on the dark
+   * theme's mint green. Not aliased through up/down — these are the inverse of
+   * the fill, not the same value.
+   */
+  --color-buy-contrast: #0e1117;
+  --color-sell-contrast: #0e1117;
+}
+
+/*
+ * The vivid pair above is tuned for near-black surfaces, where it measures
+ * 7.9:1 (up) and 4.8:1 (down). On the light theme the same green is 2.2:1 on a
+ * white card — under half the 4.5:1 AA floor — so light mode re-tones both to a
+ * deeper pair and flips the fill labels to white.
+ *
+ * Overriding the tokens rather than adding light-mode utilities keeps up/down
+ * the single source of truth: buy/sell/profit/loss alias them, the charts read
+ * them via getComputedStyle, and the heatmap tints derive from them, so all
+ * three follow automatically.
+ *
+ * Selector note: `:not(.app-dark)` (not a plain `:root`) so this outranks the
+ * @theme defaults without depending on cascade-layer ordering.
+ */
+:root:not(.app-dark) {
+  --color-up: #0d774f;
+  --color-down: #c73039;
+
+  --color-buy-contrast: #ffffff;
+  --color-sell-contrast: #ffffff;
 }

@@ -90,7 +90,12 @@ function toggleUserMenu(event: Event) {
         :title="ui.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
         @click="ui.toggleTheme()"
       />
-      <button class="ml-1 rounded-full" aria-label="User menu" @click="toggleUserMenu">
+      <button
+        class="ml-1 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        aria-label="User menu"
+        aria-haspopup="menu"
+        @click="toggleUserMenu"
+      >
         <Avatar :icon="auth.isAuthenticated ? 'pi pi-user' : 'pi pi-lock'" shape="circle" />
       </button>
       <Menu ref="userMenu" :model="userMenuItems" popup />
@@ -98,10 +103,16 @@ function toggleUserMenu(event: Event) {
 
     <SignInDialog />
 
-    <!-- Mobile search overlay (covers the bar; closes on select or back) -->
+    <!--
+      Mobile search overlay (covers the bar; closes on select, back or Escape).
+      It's a search region rather than a dialog: it replaces the bar in place, so
+      the rest of the page stays reachable and there's nothing to trap focus in.
+    -->
     <div
       v-if="mobileSearchOpen"
+      role="search"
       class="absolute inset-0 z-40 flex items-center gap-2 bg-surface-0 px-4 dark:bg-surface-950 sm:hidden"
+      @keydown.escape="mobileSearchOpen = false"
     >
       <Button
         icon="pi pi-arrow-left"

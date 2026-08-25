@@ -12,8 +12,10 @@ withDefaults(
     /** Show the volume column (only meaningful for the most-active list). */
     showVolume?: boolean
     emptyMessage?: string
+    /** Names the table for assistive tech, e.g. "Top gainers". */
+    label?: string
   }>(),
-  { showVolume: false, emptyMessage: 'Nothing to show right now.' },
+  { showVolume: false, emptyMessage: 'Nothing to show right now.', label: 'Movers' },
 )
 
 const router = useRouter()
@@ -34,6 +36,8 @@ function openChart(symbol: string) {
     data-key="symbol"
     row-hover
     class="cursor-pointer"
+    table-style="min-width: 17rem"
+    :table-props="{ 'aria-label': label }"
     @row-click="openChart(($event.data as Mover).symbol)"
   >
     <template #empty>
@@ -42,8 +46,23 @@ function openChart(symbol: string) {
 
     <Column header="Symbol">
       <template #body="{ data }">
-        <span class="font-semibold text-color">{{ data.symbol }}</span>
-        <span class="block max-w-[11rem] truncate text-xs text-muted-color">{{ data.name }}</span>
+        <!--
+          The whole row is clickable for pointers, but a row isn't focusable, so
+          the symbol is also a real button — that's the keyboard's way in. The
+          `.stop` keeps the row handler from firing a second navigation.
+        -->
+        <button
+          type="button"
+          class="group rounded-border text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          :aria-label="`Open ${data.symbol} chart`"
+          @click.stop="openChart(data.symbol)"
+        >
+          <span class="font-semibold text-color group-hover:text-primary">{{ data.symbol }}</span>
+          <!-- Clamped hard on phones: at 11rem the name alone pushes Change off-screen. -->
+          <span class="block max-w-[7rem] truncate text-xs text-muted-color sm:max-w-[11rem]">
+            {{ data.name }}
+          </span>
+        </button>
       </template>
     </Column>
 

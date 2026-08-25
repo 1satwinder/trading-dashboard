@@ -10,6 +10,8 @@ import StatCard from '@/components/common/StatCard.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import Sparkline from '@/components/common/Sparkline.vue'
 import LivePrice from '@/components/common/LivePrice.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { usePortfolioStore } from '@/stores/portfolio'
 import { formatCurrency } from '@/utils/format'
@@ -37,6 +39,9 @@ const liveStatus = computed(() => {
   }
 })
 
+/** An error with nothing cached leaves the table with nothing to draw. */
+const failedOutright = computed(() => Boolean(watchlist.error) && watchlist.items.length === 0)
+
 onMounted(async () => {
   portfolio.load()
   // Fetch baseline quotes first so streamed ticks update rows already on screen.
@@ -50,13 +55,48 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-8">
+  <section class="flex flex-col gap-6">
+    <!-- Page header -->
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-color">Watchlist</h1>
+        <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-color">
+          <span>Live prices for the symbols you follow.</span>
+          <span
+            role="status"
+            class="inline-flex items-center gap-1.5 rounded-full border border-surface-200 px-2 py-0.5 text-xs font-medium dark:border-surface-700"
+          >
+            <span class="relative flex h-2 w-2" aria-hidden="true">
+              <span
+                v-if="liveStatus.pulse"
+                class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                :class="liveStatus.dot"
+              />
+              <span class="relative inline-flex h-2 w-2 rounded-full" :class="liveStatus.dot" />
+            </span>
+            {{ liveStatus.label }}
+          </span>
+        </p>
+      </div>
+
+      <Button
+        icon="pi pi-refresh"
+        label="Refresh"
+        size="small"
+        severity="secondary"
+        outlined
+        :loading="watchlist.loading"
+        @click="watchlist.load()"
+      />
+    </div>
+
     <!-- Portfolio summary -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <StatCard
         label="Portfolio Value"
         :value="portfolio.summary ? formatCurrency(portfolio.summary.totalValue) : '—'"
         icon="pi pi-wallet"
+        :loading="portfolio.initialLoading"
       >
         <template v-if="portfolio.summary" #default>
           <PriceTag :value="portfolio.summary.dayChangePercent" format="percent" show-arrow />
@@ -68,9 +108,10 @@ onUnmounted(() => {
         label="Buying Power"
         :value="portfolio.summary ? formatCurrency(portfolio.summary.buyingPower) : '—'"
         icon="pi pi-dollar"
+        :loading="portfolio.initialLoading"
       />
 
-      <StatCard label="Day's P/L" icon="pi pi-chart-line">
+      <StatCard label="Day's P/L" icon="pi pi-chart-line" :loading="portfolio.initialLoading">
         <template #value>
           <PriceTag
             v-if="portfolio.summary"
@@ -86,123 +127,117 @@ onUnmounted(() => {
       </StatCard>
     </div>
 
-    <!-- Watchlist table -->
-    <div
-      class="overflow-hidden rounded-border border border-surface-200 bg-surface-0 dark:border-surface-800 dark:bg-surface-900"
-    >
-      <div
-        class="flex items-center justify-between gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-800"
-      >
-        <div class="flex items-center gap-3">
-          <h2 class="font-semibold text-color">Watchlist</h2>
-          <span
-            class="inline-flex items-center gap-1.5 rounded-full border border-surface-200 px-2 py-0.5 text-xs font-medium text-muted-color dark:border-surface-700"
-            :title="`Streaming: ${watchlist.streamStatus}`"
-          >
-            <span class="relative flex h-2 w-2">
-              <span
-                v-if="liveStatus.pulse"
-                class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-                :class="liveStatus.dot"
-              />
-              <span class="relative inline-flex h-2 w-2 rounded-full" :class="liveStatus.dot" />
-            </span>
-            {{ liveStatus.label }}
-          </span>
-        </div>
-        <Button
-          icon="pi pi-refresh"
-          text
-          rounded
-          size="small"
-          severity="secondary"
-          :loading="watchlist.loading"
-          aria-label="Refresh quotes"
-          title="Refresh quotes"
-          @click="watchlist.load()"
-        />
-      </div>
+    <Message v-if="portfolio.error" severity="error" :closable="false">
+      {{ portfolio.error }}
+    </Message>
 
-      <Message v-if="watchlist.error" severity="error" :closable="false" class="m-4">
+    <!-- Watchlist table -->
+    <div class="flex flex-col gap-3">
+      <Message v-if="watchlist.error" severity="error" :closable="false">
         {{ watchlist.error }}
       </Message>
 
-      <!-- Empty state -->
       <div
-        v-else-if="watchlist.isEmpty && !watchlist.loading"
-        class="flex flex-col items-center gap-2 px-6 py-16 text-center"
+        class="overflow-hidden rounded-border border border-surface-200 bg-surface-0 dark:border-surface-800 dark:bg-surface-900"
       >
-        <i class="pi pi-search text-3xl text-muted-color" />
-        <p class="font-medium text-color">Your watchlist is empty</p>
-        <p class="max-w-xs text-sm text-muted-color">
-          Use the search bar above to find a stock or ETF and add it to your watchlist.
-        </p>
-      </div>
+        <TableSkeleton
+          v-if="watchlist.initialLoading"
+          :rows="5"
+          :columns="4"
+          avatar
+          label="Loading watchlist quotes"
+        />
 
-      <DataTable
-        v-else
-        :value="watchlist.items"
-        :loading="watchlist.loading"
-        data-key="symbol"
-        row-hover
-      >
-        <Column field="symbol" header="Symbol" sortable>
-          <template #body="{ data }">
-            <button
-              type="button"
-              class="group flex items-center gap-3 text-left"
-              :title="`Open ${data.symbol} chart`"
-              @click="openChart(data.symbol)"
-            >
-              <Avatar :label="data.symbol.charAt(0)" shape="circle" />
-              <div>
-                <div class="font-semibold text-color group-hover:text-primary">
-                  {{ data.symbol }}
-                </div>
-                <div class="text-xs text-muted-color">{{ data.name }}</div>
-              </div>
-            </button>
-          </template>
-        </Column>
+        <EmptyState
+          v-else-if="watchlist.isEmpty"
+          icon="pi pi-search"
+          title="Your watchlist is empty"
+          message="Use the search bar above to find a stock or ETF and add it to your watchlist."
+        />
 
-        <Column field="price" header="Last Price" sortable>
-          <template #body="{ data }">
-            <LivePrice :price="data.price" />
-          </template>
-        </Column>
+        <EmptyState
+          v-else-if="failedOutright"
+          icon="pi pi-exclamation-triangle"
+          title="Quotes are unavailable"
+          message="We couldn’t reach the market-data feed. Try refreshing in a moment."
+        />
 
-        <Column field="changePercent" header="Change %" sortable>
-          <template #body="{ data }">
-            <PriceTag :value="data.changePercent" format="percent" show-arrow />
-          </template>
-        </Column>
-
-        <Column
-          header="Trend"
-          header-class="hidden sm:table-cell"
-          body-class="hidden sm:table-cell"
+        <DataTable
+          v-else
+          :value="watchlist.items"
+          data-key="symbol"
+          row-hover
+          table-style="min-width: 25rem"
+          :table-props="{ 'aria-label': 'Watchlist quotes' }"
         >
-          <template #body="{ data }">
-            <Sparkline v-if="data.sparkline?.length" :data="data.sparkline" />
-            <span v-else class="text-xs text-muted-color">—</span>
-          </template>
-        </Column>
+          <Column field="symbol" header="Symbol" sortable>
+            <template #body="{ data }">
+              <button
+                type="button"
+                class="group flex items-center gap-3 rounded-border text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                :aria-label="`Open ${data.symbol} chart`"
+                @click="openChart(data.symbol)"
+              >
+                <!--
+                  The avatar and the full company name are the two things this
+                  column can give up on a phone; without that, Change % — the
+                  reason to open the page — gets pushed off the right edge.
+                -->
+                <Avatar
+                  :label="data.symbol.charAt(0)"
+                  shape="circle"
+                  class="hidden sm:inline-flex"
+                />
+                <div class="min-w-0">
+                  <div class="font-semibold text-color group-hover:text-primary">
+                    {{ data.symbol }}
+                  </div>
+                  <div class="max-w-[5.5rem] truncate text-xs text-muted-color sm:max-w-none">
+                    {{ data.name }}
+                  </div>
+                </div>
+              </button>
+            </template>
+          </Column>
 
-        <Column header="" body-class="w-12">
-          <template #body="{ data }">
-            <Button
-              icon="pi pi-times"
-              text
-              rounded
-              size="small"
-              severity="secondary"
-              :aria-label="`Remove ${data.symbol}`"
-              :title="`Remove ${data.symbol}`"
-              @click="watchlist.remove(data.symbol)"
-            />
-          </template>
-        </Column>
-      </DataTable>
+          <Column field="price" header="Last Price" sortable>
+            <template #body="{ data }">
+              <LivePrice :price="data.price" />
+            </template>
+          </Column>
+
+          <Column field="changePercent" header="Change %" sortable>
+            <template #body="{ data }">
+              <PriceTag :value="data.changePercent" format="percent" show-arrow />
+            </template>
+          </Column>
+
+          <Column
+            header="Trend"
+            header-class="hidden sm:table-cell"
+            body-class="hidden sm:table-cell"
+          >
+            <template #body="{ data }">
+              <Sparkline v-if="data.sparkline?.length" :data="data.sparkline" />
+              <span v-else class="text-xs text-muted-color">—</span>
+            </template>
+          </Column>
+
+          <Column header="" body-class="w-12">
+            <template #body="{ data }">
+              <Button
+                icon="pi pi-times"
+                text
+                rounded
+                size="small"
+                severity="secondary"
+                :aria-label="`Remove ${data.symbol} from watchlist`"
+                @click="watchlist.remove(data.symbol)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
     </div>
   </section>
 </template>

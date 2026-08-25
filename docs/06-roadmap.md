@@ -187,9 +187,49 @@ _News was dropped from scope (ADR-019); the nav slot it occupied is now Orders._
 ## Phase 11 — Polish
 
 - [x] Light theme + persisted theme toggle.
-- [ ] Loading/empty/error states; skeletons.
-- [ ] Accessibility pass (keyboard nav, contrast, ARIA).
-- [ ] Responsive QA on real devices.
+- [x] Loading/empty/error states; skeletons.
+      _(Two shared primitives — `EmptyState` (icon + headline + explanation) and
+      `TableSkeleton` (header row + placeholder rows) — replace the ad-hoc empty blocks
+      and centred spinners, and `StatCard` gained a `loading` prop. Every fetch concern
+      now distinguishes **first load from refresh** via a `hasLoaded`-style flag
+      (`initialLoading`, `positionsInitialLoading`, …) exposed from the store, so
+      background polling and the Refresh button no longer flash placeholders. The two
+      remaining `DataTable :loading` bindings are gone — the mask-orphan bug in
+      `CLAUDE.md` made them unsafe. Also fixed: a Markets region switch used to caption
+      the outgoing region's rows with the incoming region's scope, `chart.setSymbol` left
+      the previous symbol's candles under the loading state, and `statsError` was
+      swallowed so a failed fundamentals call read as "no data". See ADR-025.)_
+- [x] Accessibility pass — keyboard nav, ARIA, semantics.
+      _(Skip link → `main#main-content`; one `<h1>` per route; `document.title` +
+      an `aria-live` announcer driven by `meta.title`; real labels on the symbol search
+      and every order-ticket field; `aria-pressed` on the Buy/Sell toggle;
+      keyboard-reachable symbol buttons in the mouse-only `MoversTable` rows;
+      `aria-label` text alternatives on the canvas charts and the 52-week marker;
+      `aria-current` on nav links; collapsed-sidebar labels kept as `sr-only` instead of
+      removed; decorative icons `aria-hidden`; global `prefers-reduced-motion` opt-out.
+      See ADR-025.)_
+- [x] Accessibility: colour contrast.
+      _(An eyeball review passed this; measuring it did not. `text-up` `#16c784` was
+      **2.20:1** on a light card and `text-white` on `bg-buy` the same — both under half
+      the 4.5:1 AA floor. Fixed by making `up`/`down` **theme-aware**: the vivid pair stays
+      on near-black surfaces, light mode re-tones to `#0d774f`/`#c73039`, and new
+      `buy/sell-contrast` tokens carry the label colour for the fills (near-black on dark,
+      white on light). Overriding the tokens means the aliases, both charts and the heatmap
+      tints all follow for free. Three more failures fell out of the same audit: heatmap
+      labels on the strongest tints (top shade capped at 40%, labels off `muted`), Aura's
+      light `primary.500` on the active nav item's tint at 3.74:1 (light scheme shifted to
+      600/700/800), and the SelectButton's resting label at 4.34:1 on its own track. A
+      scripted audit of every text node now reports **zero** failures across all six routes
+      in both themes. See ADR-025.)_
+- [x] Responsive QA on real devices.
+      _(Verified at 375×812 and desktop. `env(safe-area-inset-bottom)` on the bottom nav
+      and the `<main>` bottom padding; the Toast lifts clear of the nav via PrimeVue's
+      `breakpoints`; the chart toolbar and Orders filter scroll instead of overflowing;
+      the sticky order panel now clears the sticky top bar (`lg:top-20`). Wide tables
+      scroll **inside their own card** with `tableStyle="min-width"` tuned to each
+      table's min-content width — a floor that was overshooting and pushing Change %
+      and P/L off-screen. Mobile drops the avatar plus the lowest-priority column per
+      table (Avg Cost on Holdings, Price on Orders) so the columns that matter fit.)_
 
 ## Phase 12 — Deploy
 

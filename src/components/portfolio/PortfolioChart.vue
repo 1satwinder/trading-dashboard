@@ -11,7 +11,14 @@ import {
 import type { PortfolioHistoryPoint } from '@/types/market'
 import { useUiStore } from '@/stores/ui'
 
-const props = defineProps<{ points: PortfolioHistoryPoint[] }>()
+const props = defineProps<{
+  points: PortfolioHistoryPoint[]
+  /**
+   * Sentence describing the series. `lightweight-charts` draws to a canvas, so
+   * without this the chart is invisible to assistive tech.
+   */
+  ariaLabel?: string
+}>()
 
 const ui = useUiStore()
 const container = ref<HTMLDivElement | null>(null)
@@ -34,7 +41,7 @@ function palette() {
   const first = props.points[0]?.value ?? 0
   const last = props.points[props.points.length - 1]?.value ?? 0
   const up = last >= first
-  const line = up ? readToken('--color-up', '#16c784') : readToken('--color-down', '#ea3943')
+  const line = up ? readToken('--color-up', '#16c784') : readToken('--color-down', '#ec4d56')
   return {
     line,
     top: `${line}55`,
@@ -99,5 +106,10 @@ watch(() => ui.isDark, applyTheme)
 </script>
 
 <template>
-  <div ref="container" class="h-full w-full" />
+  <div
+    ref="container"
+    class="h-full w-full"
+    role="img"
+    :aria-label="ariaLabel ?? 'Portfolio value over time'"
+  />
 </template>

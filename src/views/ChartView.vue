@@ -7,13 +7,16 @@ import Popover from 'primevue/popover'
 import Checkbox from 'primevue/checkbox'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
+import Skeleton from 'primevue/skeleton'
 import PriceChart, { type ChartType } from '@/components/chart/PriceChart.vue'
 import OrderPanel from '@/components/chart/OrderPanel.vue'
 import SymbolStatsHeader from '@/components/chart/SymbolStatsHeader.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { useChartStore } from '@/stores/chart'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { CHART_TIMEFRAMES } from '@/services/marketData'
 import type { ChartTimeframeId } from '@/types/market'
+import { formatCurrency, formatPercent } from '@/utils/format'
 
 const route = useRoute()
 const chart = useChartStore()
@@ -63,6 +66,17 @@ const activeSmas = computed(() => {
 })
 const indicatorCount = computed(() => activeSmas.value.length)
 
+/**
+ * The chart is a canvas, so this sentence is all a screen reader gets. Give it
+ * the same summary a sighted user reads off the axes: what's plotted, over what
+ * span, and where it ended up.
+ */
+const chartLabel = computed(() => {
+  const what = `${chart.symbol} ${chart.timeframe} ${chartType.value} chart`
+  if (!chart.hasData) return what
+  return `${what}. ${formatCurrency(chart.lastPrice)}, ${formatPercent(chart.changePercent, { signed: true })} over the range.`
+})
+
 const indicatorsPopover = ref<InstanceType<typeof Popover> | null>(null)
 function toggleIndicators(event: Event) {
   indicatorsPopover.value?.toggle(event)
@@ -111,15 +125,18 @@ watch(() => route.params.symbol, syncSymbol)
           <div
             class="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 px-2 py-2 dark:border-surface-800"
           >
-            <SelectButton
-              v-model="timeframe"
-              :options="CHART_TIMEFRAMES"
-              option-label="label"
-              option-value="id"
-              :allow-empty="false"
-              aria-label="Timeframe"
-              size="small"
-            />
+            <!-- Six segments don't fit a 375px viewport, so let the group scroll. -->
+            <div class="min-w-0 max-w-full overflow-x-auto">
+              <SelectButton
+                v-model="timeframe"
+                :options="CHART_TIMEFRAMES"
+                option-label="label"
+                option-value="id"
+                :allow-empty="false"
+                aria-label="Timeframe"
+                size="small"
+              />
+            </div>
 
             <div class="flex items-center gap-1">
               <SelectButton
@@ -132,7 +149,9 @@ watch(() => route.params.symbol, syncSymbol)
                 size="small"
               >
                 <template #option="{ option }">
-                  <i :class="option.icon" :title="option.label" />
+                  <!-- Icon-only segments need a real name; `title` isn't reliably read. -->
+                  <i :class="option.icon" :title="option.label" aria-hidden="true" />
+                  <span class="sr-only">{{ option.label }}</span>
                 </template>
               </SelectButton>
 
@@ -192,25 +211,37 @@ watch(() => route.params.symbol, syncSymbol)
               {{ chart.error }}
             </Message>
 
-            <template v-else>
+            <Skeleton
+              v-else-if="chart.loading && !chart.hasData"
+              height="100%"
+              width="100%"
+              role="status"
+              :aria-label="`Loading ${chart.symbol} chart`"
+            />
+
+            <template v-else-if="chart.hasData">
               <PriceChart
-                v-if="chart.hasData"
                 :candles="chart.candles"
                 :chart-type="chartType"
                 :smas="activeSmas"
+                :aria-label="chartLabel"
               />
-
+              <!-- Timeframe switches keep the old series on screen; mark it as stale. -->
               <div
-                v-if="chart.loading || !chart.hasData"
-                class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-color"
+                v-if="chart.loading"
+                class="absolute inset-0 flex items-center justify-center bg-surface-0/60 dark:bg-surface-900/60"
               >
-                <ProgressSpinner v-if="chart.loading" style="width: 2.5rem; height: 2.5rem" />
-                <template v-else>
-                  <i class="pi pi-chart-line text-3xl" />
-                  <p class="text-sm">No chart data available.</p>
-                </template>
+                <ProgressSpinner style="width: 2.5rem; height: 2.5rem" />
               </div>
             </template>
+
+            <EmptyState
+              v-else
+              compact
+              icon="pi pi-chart-line"
+              title="No chart data available"
+              message="This symbol has no bars on the free IEX feed for the selected timeframe."
+            />
           </div>
         </div>
       </div>

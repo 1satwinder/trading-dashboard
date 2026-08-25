@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import Skeleton from 'primevue/skeleton'
 import PriceTag from '@/components/common/PriceTag.vue'
 import { useChartStore } from '@/stores/chart'
-import {
-  formatCompact,
-  formatCompactCurrency,
-  formatCurrency,
-  formatPercent,
-} from '@/utils/format'
+import { formatCompact, formatCompactCurrency, formatCurrency, formatPercent } from '@/utils/format'
 
 /**
  * Symbol-info header for the Chart page (ADR-023): symbol + live price, then
@@ -59,6 +55,16 @@ const rangePercent = computed(() => {
   const pct = ((chart.lastPrice - low) / (high - low)) * 100
   return Math.min(100, Math.max(0, pct))
 })
+
+/** The marker's position is the only cue for where in the range we are — say it. */
+const rangeLabel = computed(() =>
+  rangePercent.value === null
+    ? undefined
+    : `${formatPercent(rangePercent.value)} of the way up the 52-week range`,
+)
+
+/** Only the first fetch per symbol shows placeholders — `setSymbol` clears `stats`. */
+const showPlaceholders = computed(() => chart.statsLoading && !stats.value)
 </script>
 
 <template>
@@ -71,7 +77,7 @@ const rangePercent = computed(() => {
       <span v-if="chart.name" class="text-sm text-muted-color">{{ chart.name }}</span>
     </div>
 
-    <div class="mt-1 flex items-center gap-3">
+    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
       <span class="text-3xl font-bold tabular-nums text-color">
         {{ formatCurrency(chart.lastPrice) }}
       </span>
@@ -87,19 +93,24 @@ const rangePercent = computed(() => {
     >
       <div v-for="stat in keyStats" :key="stat.label" class="min-w-[5.5rem]">
         <div class="text-muted-color">{{ stat.label }}</div>
-        <div class="tabular-nums text-color">{{ stat.value }}</div>
+        <Skeleton v-if="showPlaceholders" height="0.9rem" width="3.5rem" class="mt-1" />
+        <div v-else class="tabular-nums text-color">{{ stat.value }}</div>
       </div>
     </div>
 
     <!-- 52-week range -->
     <div class="mt-3 border-t border-surface-200 pt-3 text-sm dark:border-surface-800">
-      <div class="flex items-center justify-between text-muted-color">
+      <div class="flex items-center justify-between gap-2 text-muted-color">
         <span>52W Range</span>
         <span class="tabular-nums">
           {{ money(stats?.weekLow52) }} – {{ money(stats?.weekHigh52) }}
         </span>
       </div>
-      <div class="relative mt-2 h-1.5 rounded-full bg-surface-100 dark:bg-surface-800">
+      <div
+        class="relative mt-2 h-1.5 rounded-full bg-surface-100 dark:bg-surface-800"
+        :role="rangeLabel ? 'img' : undefined"
+        :aria-label="rangeLabel"
+      >
         <div
           v-if="rangePercent !== null"
           class="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface-0 bg-primary dark:border-surface-900"
@@ -107,5 +118,14 @@ const rangePercent = computed(() => {
         />
       </div>
     </div>
+
+    <!--
+      Fundamentals come from a second provider (ADR-023), so they can fail on
+      their own. Say so rather than leaving nine em dashes that read as "no data".
+    -->
+    <p v-if="chart.statsError" class="mt-3 text-xs text-muted-color">
+      <i class="pi pi-exclamation-circle mr-1" aria-hidden="true" />
+      Key stats are unavailable right now.
+    </p>
   </div>
 </template>

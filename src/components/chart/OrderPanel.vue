@@ -118,18 +118,27 @@ async function submitOrder() {
 
 <template>
   <aside
-    class="h-fit self-start rounded-border border border-surface-200 bg-surface-0 p-4 lg:sticky lg:top-4 dark:border-surface-800 dark:bg-surface-900"
+    class="h-fit self-start rounded-border border border-surface-200 bg-surface-0 p-4 lg:sticky lg:top-20 dark:border-surface-800 dark:bg-surface-900"
+    aria-label="Order ticket"
   >
-    <!-- Buy / Sell -->
-    <div class="grid grid-cols-2 gap-2">
+    <!--
+      Selected side is otherwise conveyed by fill colour alone, which neither a
+      screen reader nor a colour-blind user gets — hence the group + aria-pressed.
+
+      Resting label is surface-600, not text-muted-color: muted is 4.3:1 on the
+      surface-100 track in the light theme. The `*-contrast` tokens are the label
+      for the fills, which are themselves per-theme (see main.css).
+    -->
+    <div class="grid grid-cols-2 gap-2" role="group" aria-label="Order side">
       <button
         type="button"
         class="rounded-border py-2 text-sm font-semibold transition-colors"
         :class="
           side === 'buy'
-            ? 'bg-buy text-white'
-            : 'bg-surface-100 text-muted-color hover:text-color dark:bg-surface-800'
+            ? 'bg-buy text-buy-contrast'
+            : 'bg-surface-100 text-surface-600 hover:text-color dark:bg-surface-800 dark:text-surface-400'
         "
+        :aria-pressed="side === 'buy'"
         @click="side = 'buy'"
       >
         Buy
@@ -139,9 +148,10 @@ async function submitOrder() {
         class="rounded-border py-2 text-sm font-semibold transition-colors"
         :class="
           side === 'sell'
-            ? 'bg-sell text-white'
-            : 'bg-surface-100 text-muted-color hover:text-color dark:bg-surface-800'
+            ? 'bg-sell text-sell-contrast'
+            : 'bg-surface-100 text-surface-600 hover:text-color dark:bg-surface-800 dark:text-surface-400'
         "
+        :aria-pressed="side === 'sell'"
         @click="side = 'sell'"
       >
         Sell
@@ -150,9 +160,10 @@ async function submitOrder() {
 
     <!-- Order type -->
     <div class="mt-4">
-      <label class="mb-1 block text-sm text-muted-color">Order Type</label>
+      <label for="order-type" class="mb-1 block text-sm text-muted-color">Order Type</label>
       <Select
         v-model="orderType"
+        input-id="order-type"
         :options="orderTypes"
         option-label="label"
         option-value="value"
@@ -162,9 +173,10 @@ async function submitOrder() {
 
     <!-- Limit / Stop price -->
     <div v-if="orderType === 'limit'" class="mt-4">
-      <label class="mb-1 block text-sm text-muted-color">Limit Price</label>
+      <label for="order-limit-price" class="mb-1 block text-sm text-muted-color">Limit Price</label>
       <InputNumber
         v-model="limitPrice"
+        input-id="order-limit-price"
         mode="currency"
         currency="USD"
         :min="0"
@@ -173,9 +185,10 @@ async function submitOrder() {
       />
     </div>
     <div v-else-if="orderType === 'stop'" class="mt-4">
-      <label class="mb-1 block text-sm text-muted-color">Stop Price</label>
+      <label for="order-stop-price" class="mb-1 block text-sm text-muted-color">Stop Price</label>
       <InputNumber
         v-model="stopPrice"
+        input-id="order-stop-price"
         mode="currency"
         currency="USD"
         :min="0"
@@ -186,15 +199,23 @@ async function submitOrder() {
 
     <!-- Quantity -->
     <div class="mt-4">
-      <label class="mb-1 block text-sm text-muted-color">Quantity</label>
-      <InputNumber v-model="quantity" show-buttons :min="1" :step="1" fluid />
+      <label for="order-quantity" class="mb-1 block text-sm text-muted-color">Quantity</label>
+      <InputNumber
+        v-model="quantity"
+        input-id="order-quantity"
+        show-buttons
+        :min="1"
+        :step="1"
+        fluid
+      />
     </div>
 
     <!-- Time in force -->
     <div class="mt-4">
-      <label class="mb-1 block text-sm text-muted-color">Time in Force</label>
+      <label for="order-tif" class="mb-1 block text-sm text-muted-color">Time in Force</label>
       <Select
         v-model="timeInForce"
+        input-id="order-tif"
         :options="timeInForceOptions"
         option-label="label"
         option-value="value"
@@ -230,7 +251,7 @@ async function submitOrder() {
     />
 
     <p class="mt-3 flex items-start gap-1.5 text-xs text-muted-color">
-      <i class="pi pi-info-circle mt-0.5" />
+      <i class="pi pi-info-circle mt-0.5" aria-hidden="true" />
       <span>{{ orderNote }}</span>
     </p>
 
@@ -270,7 +291,7 @@ async function submitOrder() {
       </dl>
 
       <p class="mt-3 flex items-start gap-1.5 text-xs text-muted-color">
-        <i class="pi pi-info-circle mt-0.5" />
+        <i class="pi pi-info-circle mt-0.5" aria-hidden="true" />
         <span>Paper trading via Alpaca — no real money is involved.</span>
       </p>
 

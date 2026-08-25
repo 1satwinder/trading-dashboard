@@ -2,8 +2,10 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
-import ProgressSpinner from 'primevue/progressspinner'
+import Skeleton from 'primevue/skeleton'
 import SelectButton from 'primevue/selectbutton'
+import EmptyState from '@/components/common/EmptyState.vue'
+import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import IndexCard from '@/components/markets/IndexCard.vue'
 import MoversTable from '@/components/markets/MoversTable.vue'
 import SectorHeatmap from '@/components/markets/SectorHeatmap.vue'
@@ -22,11 +24,6 @@ const region = computed({
   get: () => markets.region,
   set: (value: MarketRegion) => markets.setRegion(value),
 })
-
-/** Spinners only on the very first fetch; refreshes update in place. */
-const indicesInitialLoading = computed(() => markets.indicesLoading && markets.indices.length === 0)
-const moversInitialLoading = computed(() => markets.moversLoading && !markets.movers)
-const sectorsInitialLoading = computed(() => markets.sectorsLoading && markets.sectors.length === 0)
 
 const anyLoading = computed(
   () => markets.indicesLoading || markets.moversLoading || markets.sectorsLoading,
@@ -73,12 +70,16 @@ onUnmounted(() => {
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h1 class="text-xl font-semibold text-color">Markets</h1>
-        <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-color">
+        <p
+          role="status"
+          class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-color"
+        >
           <template v-if="marketStatus">
             <span class="inline-flex items-center gap-1.5">
               <span
                 class="size-2 rounded-full"
                 :class="markets.isMarketOpen ? 'bg-up' : 'bg-surface-400 dark:bg-surface-600'"
+                aria-hidden="true"
               />
               {{ marketStatus.label }}
             </span>
@@ -106,11 +107,33 @@ onUnmounted(() => {
         {{ markets.indicesError }}
       </Message>
 
-      <div v-else-if="indicesInitialLoading" class="flex justify-center py-10">
-        <ProgressSpinner style="width: 2.5rem; height: 2.5rem" />
+      <!-- Scroll strip on mobile, even grid once there's room for all five. -->
+      <div
+        v-else-if="markets.indicesInitialLoading"
+        role="status"
+        aria-label="Loading benchmarks"
+        class="-mx-4 flex gap-3 px-4 pb-1 md:mx-0 md:grid md:grid-cols-5 md:px-0"
+      >
+        <div
+          v-for="card in 5"
+          :key="card"
+          class="min-w-[10.5rem] shrink-0 rounded-border border border-surface-200 p-4 md:min-w-0 dark:border-surface-800"
+          aria-hidden="true"
+        >
+          <Skeleton height="0.8rem" width="70%" />
+          <Skeleton height="1.4rem" width="60%" class="mt-3" />
+          <Skeleton height="0.75rem" width="40%" class="mt-2" />
+        </div>
       </div>
 
-      <!-- Scroll strip on mobile, even grid once there's room for all five. -->
+      <EmptyState
+        v-else-if="!markets.indices.length"
+        compact
+        icon="pi pi-chart-bar"
+        title="No benchmarks available"
+        message="The index proxies couldn’t be quoted. They’ll reappear on the next refresh."
+      />
+
       <div
         v-else
         class="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-5 md:overflow-visible md:px-0"
@@ -133,8 +156,14 @@ onUnmounted(() => {
       {{ markets.moversError }}
     </Message>
 
-    <div v-else-if="moversInitialLoading" class="flex justify-center py-16">
-      <ProgressSpinner style="width: 2.5rem; height: 2.5rem" />
+    <div v-else-if="markets.moversInitialLoading" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div
+        v-for="table in 2"
+        :key="table"
+        class="overflow-hidden rounded-border border border-surface-200 dark:border-surface-800"
+      >
+        <TableSkeleton :rows="5" :columns="3" label="Loading movers" />
+      </div>
     </div>
 
     <template v-else>
@@ -149,6 +178,7 @@ onUnmounted(() => {
           </div>
           <MoversTable
             :movers="markets.movers?.gainers ?? []"
+            label="Top gainers"
             empty-message="No gainers to show right now."
           />
         </div>
@@ -162,6 +192,7 @@ onUnmounted(() => {
           </div>
           <MoversTable
             :movers="markets.movers?.losers ?? []"
+            label="Top losers"
             empty-message="No losers to show right now."
           />
         </div>
@@ -178,6 +209,7 @@ onUnmounted(() => {
         <MoversTable
           :movers="markets.movers?.mostActive ?? []"
           show-volume
+          label="Most active by volume"
           empty-message="No volume leaders to show right now."
         />
       </div>
@@ -193,8 +225,13 @@ onUnmounted(() => {
       <Message v-if="markets.sectorsError" severity="error" :closable="false">
         {{ markets.sectorsError }}
       </Message>
-      <div v-else-if="sectorsInitialLoading" class="flex justify-center py-10">
-        <ProgressSpinner style="width: 2.5rem; height: 2.5rem" />
+      <div
+        v-else-if="markets.sectorsInitialLoading"
+        role="status"
+        aria-label="Loading sectors"
+        class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4"
+      >
+        <Skeleton v-for="tile in 8" :key="tile" height="5.25rem" />
       </div>
       <SectorHeatmap v-else :sectors="markets.sectors" />
     </div>

@@ -3,8 +3,9 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import SelectButton from 'primevue/selectbutton'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
-import ProgressSpinner from 'primevue/progressspinner'
 import { useToast } from 'primevue/usetoast'
+import EmptyState from '@/components/common/EmptyState.vue'
+import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import OrdersTable from '@/components/orders/OrdersTable.vue'
 import type { Order } from '@/types/market'
 import { isOrderOpen } from '@/types/market'
@@ -61,6 +62,9 @@ const visibleOrders = computed(() => orders.orders.filter((o) => matchesFilter(o
 
 /** Only the very first fetch blocks the table; refreshes use the button's spinner. */
 const initialLoading = computed(() => orders.loading && orders.orders.length === 0)
+
+/** An error with nothing cached leaves the table with nothing to draw. */
+const failedOutright = computed(() => Boolean(orders.error) && orders.orders.length === 0)
 
 const emptyMessage = computed(() => {
   if (orders.orders.length === 0) {
@@ -142,23 +146,30 @@ onUnmounted(() => {
       {{ orders.error }}
     </Message>
 
-    <!-- Status filter -->
-    <SelectButton
-      v-model="filter"
-      :options="filterOptions"
-      option-label="label"
-      option-value="value"
-      :allow-empty="false"
-      aria-label="Filter orders by status"
-      size="small"
-    />
+    <!-- Status filter. Four labelled segments overflow a 375px viewport, so let it scroll. -->
+    <div class="-mx-1 overflow-x-auto px-1 pb-1">
+      <SelectButton
+        v-model="filter"
+        :options="filterOptions"
+        option-label="label"
+        option-value="value"
+        :allow-empty="false"
+        aria-label="Filter orders by status"
+        size="small"
+      />
+    </div>
 
     <div
       class="overflow-hidden rounded-border border border-surface-200 bg-surface-0 dark:border-surface-800 dark:bg-surface-900"
     >
-      <div v-if="initialLoading" class="flex justify-center py-16">
-        <ProgressSpinner style="width: 2.5rem; height: 2.5rem" />
-      </div>
+      <TableSkeleton v-if="initialLoading" :rows="5" :columns="5" label="Loading orders" />
+
+      <EmptyState
+        v-else-if="failedOutright"
+        icon="pi pi-exclamation-triangle"
+        title="Orders are unavailable"
+        message="We couldn’t reach the paper-trading account. Try refreshing in a moment."
+      />
 
       <OrdersTable
         v-else

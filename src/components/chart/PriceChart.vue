@@ -26,6 +26,11 @@ const props = withDefaults(
     chartType?: ChartType
     /** Simple-moving-average periods to overlay, e.g. [20, 50]. */
     smas?: number[]
+    /**
+     * Sentence describing the series. `lightweight-charts` draws to a canvas, so
+     * without this the chart is invisible to assistive tech.
+     */
+    ariaLabel?: string
   }>(),
   { chartType: 'candlestick', smas: () => [] },
 )
@@ -54,12 +59,16 @@ function readToken(name: string, fallback: string): string {
  * Chart palette. Trading colors come from the domain tokens (`--color-up` /
  * `--color-down`) so they stay single-source with the design system; neutral
  * chrome (text/grid) is chosen from the active theme.
+ *
+ * Those tokens are themselves per-theme, and `readToken` resolves the computed
+ * value, so the re-tone comes along for free — but only because the `ui.isDark`
+ * watcher below re-runs this after the class on <html> changes.
  */
 function palette() {
   const dark = ui.isDark
   return {
     up: readToken('--color-up', '#16c784'),
-    down: readToken('--color-down', '#ea3943'),
+    down: readToken('--color-down', '#ec4d56'),
     primary: readToken('--p-primary-color', '#4f8cff'),
     text: dark ? '#94a3b8' : '#64748b',
     grid: dark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(100, 116, 139, 0.14)',
@@ -248,5 +257,5 @@ watch(() => ui.isDark, applyChartTheme)
 </script>
 
 <template>
-  <div ref="container" class="h-full w-full" />
+  <div ref="container" class="h-full w-full" role="img" :aria-label="ariaLabel ?? 'Price chart'" />
 </template>

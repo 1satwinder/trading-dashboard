@@ -25,15 +25,27 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   const summary = ref<PortfolioSummary | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const summaryLoaded = ref(false)
 
   const positions = ref<Position[]>([])
   const positionsLoading = ref(false)
   const positionsError = ref<string | null>(null)
+  const positionsLoaded = ref(false)
 
   const history = ref<PortfolioHistory | null>(null)
   const historyRange = ref<PortfolioHistoryRange>('1M')
   const historyLoading = ref(false)
   const historyError = ref<string | null>(null)
+  const historyLoaded = ref(false)
+
+  /**
+   * The three concerns land at different times, so each tracks whether it has
+   * *ever* settled. Only that first pass gets skeletons — later refreshes (and
+   * range switches, which keep the old series on screen) update in place.
+   */
+  const initialLoading = computed(() => loading.value && !summaryLoaded.value)
+  const positionsInitialLoading = computed(() => positionsLoading.value && !positionsLoaded.value)
+  const historyInitialLoading = computed(() => historyLoading.value && !historyLoaded.value)
 
   /** Load account-level metrics (drives the dashboard stat cards). */
   async function load() {
@@ -45,6 +57,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       error.value = e instanceof Error ? e.message : 'Failed to load portfolio'
     } finally {
       loading.value = false
+      summaryLoaded.value = true
     }
   }
 
@@ -58,6 +71,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       positionsError.value = e instanceof Error ? e.message : 'Failed to load positions'
     } finally {
       positionsLoading.value = false
+      positionsLoaded.value = true
     }
   }
 
@@ -72,6 +86,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       historyError.value = e instanceof Error ? e.message : 'Failed to load performance'
     } finally {
       historyLoading.value = false
+      historyLoaded.value = true
     }
   }
 
@@ -124,15 +139,18 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   return {
     summary,
     loading,
+    initialLoading,
     error,
     load,
     positions,
     positionsLoading,
+    positionsInitialLoading,
     positionsError,
     loadPositions,
     history,
     historyRange,
     historyLoading,
+    historyInitialLoading,
     historyError,
     loadHistory,
     setHistoryRange,

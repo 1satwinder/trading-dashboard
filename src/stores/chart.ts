@@ -24,6 +24,7 @@ export const useChartStore = defineStore('chart', () => {
 
   const stats = ref<StockStats | null>(null)
   const statsLoading = ref(false)
+  const statsError = ref<string | null>(null)
 
   const hasData = computed(() => candles.value.length > 0)
   const first = computed(() => candles.value[0])
@@ -66,13 +67,15 @@ export const useChartStore = defineStore('chart', () => {
     const current = ++statsSeq
     const requested = symbol.value
     statsLoading.value = true
+    statsError.value = null
     try {
       const data = await fetchStockStats(requested)
       if (current !== statsSeq) return
       stats.value = data
-    } catch {
+    } catch (e) {
       if (current !== statsSeq) return
       stats.value = null
+      statsError.value = e instanceof Error ? e.message : 'Failed to load key stats'
     } finally {
       if (current === statsSeq) statsLoading.value = false
     }
@@ -88,6 +91,9 @@ export const useChartStore = defineStore('chart', () => {
     symbol.value = normalized
     name.value = displayName
     stats.value = null
+    // Drop the previous symbol's series too, so its chart (and the price derived
+    // from it) isn't left sitting under the loading state pretending to be this one.
+    candles.value = []
     void load()
     void loadStats()
   }
@@ -107,6 +113,7 @@ export const useChartStore = defineStore('chart', () => {
     error,
     stats,
     statsLoading,
+    statsError,
     hasData,
     lastPrice,
     change,

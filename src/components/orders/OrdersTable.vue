@@ -82,6 +82,8 @@ function submittedLabel(submittedAt: string): string {
     paginator
     :rows="15"
     :always-show-paginator="false"
+    table-style="min-width: 24rem"
+    :table-props="{ 'aria-label': 'Paper orders' }"
   >
     <template #empty>
       <p class="py-6 text-center text-sm text-muted-color">
@@ -125,7 +127,8 @@ function submittedLabel(submittedAt: string): string {
       </template>
     </Column>
 
-    <Column header="Price">
+    <!-- Status is what this page is for; on a phone it wins the width over price. -->
+    <Column header="Price" header-class="hidden sm:table-cell" body-class="hidden sm:table-cell">
       <template #body="{ data }">
         <span class="tabular-nums text-color">{{ priceLabel(data) }}</span>
       </template>

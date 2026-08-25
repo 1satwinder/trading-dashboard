@@ -76,6 +76,7 @@ async function toggleWatchlist(result: SymbolSearchResult) {
     :loading="search.loading"
     option-label="symbol"
     placeholder="Search stocks, ETFs by name or ticker..."
+    aria-label="Search stocks and ETFs by name or ticker"
     complete-on-focus
     :delay="300"
     :min-length="1"

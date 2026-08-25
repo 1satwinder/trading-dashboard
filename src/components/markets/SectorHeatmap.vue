@@ -13,9 +13,13 @@ defineProps<{ sectors: SectorPerformance[] }>()
  *
  * Spelled out as literals because Tailwind only detects complete class names in
  * source; a built-up `bg-${tone}/${step}` would never be generated.
+ *
+ * The top step is capped at 40% because the tile's own label sits on this tint:
+ * at 55% the strongest light-theme tile dropped the label to 4.1:1, under the
+ * 4.5:1 AA floor. 40% keeps four distinguishable steps at 5.4:1 worst case.
  */
-const UP_SHADES = ['bg-up/10', 'bg-up/20', 'bg-up/35', 'bg-up/55'] as const
-const DOWN_SHADES = ['bg-down/10', 'bg-down/20', 'bg-down/35', 'bg-down/55'] as const
+const UP_SHADES = ['bg-up/10', 'bg-up/18', 'bg-up/28', 'bg-up/40'] as const
+const DOWN_SHADES = ['bg-down/10', 'bg-down/18', 'bg-down/28', 'bg-down/40'] as const
 const FLAT_SHADE = 'bg-surface-100 dark:bg-surface-800'
 
 /** Percent thresholds separating the four shade steps. */
@@ -57,7 +61,11 @@ function describe(sector: SectorPerformance): string {
       <p class="mt-1 text-base font-semibold tabular-nums text-color">
         {{ formatPercent(sector.changePercent, { signed: true }) }}
       </p>
-      <p class="mt-0.5 text-xs text-muted-color">
+      <!--
+        Body text colour, not muted: muted-color is already 4.8:1 on a plain card,
+        so any tint under it drops below AA. Hierarchy comes from size instead.
+      -->
+      <p class="mt-0.5 text-xs text-color">
         {{ sector.symbol || `${sector.memberCount} holdings` }}
       </p>
     </div>

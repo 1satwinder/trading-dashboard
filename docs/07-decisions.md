@@ -173,7 +173,7 @@ decision is made. Keep them short.
   `GET /api/candles?symbol=&timeframe=` route. It fetches the **free `iex` feed** with
   `APCA-API-KEY-ID`/`APCA-API-SECRET-KEY` (from `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY`,
   server-only), owns the timeframe → `{timeframe, limit, lookback}` mapping, requests
-  `sort=desc` + an explicit `start` (Alpaca defaults `start` to the start of *today*, which
+  `sort=desc` + an explicit `start` (Alpaca defaults `start` to the start of _today_, which
   would starve daily/weekly ranges) and reverses bars to oldest→newest, mapping
   `{t,o,h,l,c,v}` → `Candle` (epoch **seconds**). Results are cached (intraday ~30–60s,
   daily/weekly ~5m). The client `marketData.fetchCandles` becomes a thin `/api/candles`
@@ -235,8 +235,8 @@ decision is made. Keep them short.
     non-positive qty, unknown side/type/TIF, and a `limit`/`stop` order without its price.
   - **Ticket vs response types:** orders placed elsewhere (e.g. Alpaca's dashboard) can carry
     types/TIFs we don't offer, so `OrderType`/`OrderTimeInForce` cover Alpaca's full equity
-    sets for *responses*, while `TicketOrderType`/`TicketTimeInForce` (`market|limit|stop`,
-    `day|gtc`) constrain what we *place*.
+    sets for _responses_, while `TicketOrderType`/`TicketTimeInForce` (`market|limit|stop`,
+    `day|gtc`) constrain what we _place_.
   - **Polling, not streaming:** `useOrdersStore` re-polls every ~5s but only while an order is
     still working. Alpaca's trade-updates stream needs server-side auth and the
     WebSocket-behind-BFF item is still open from Phase 6, so it's deliberately out of scope.
@@ -245,7 +245,7 @@ decision is made. Keep them short.
 - **Consequences:** Real paper orders work end to end with keys server-side, and fills flow
   into the portfolio without a manual refresh. Trade-offs: a `day` market order placed outside
   regular trading hours sits at `accepted` rather than filling, and polling means order state
-  can lag by up to ~5s. **Security note for Phase 12:** the BFF has no auth, so a *deployed*
+  can lag by up to ~5s. **Security note for Phase 12:** the BFF has no auth, so a _deployed_
   instance would let anyone trade the shared paper account (ADR-012) — acceptable for local
   dev, but deploying needs at least a rate limit or a shared secret. **Deferred:**
   bracket/OCO/OTO classes, `PATCH` replace-order, close-position, cancel-all,
@@ -257,8 +257,8 @@ decision is made. Keep them short.
 - **Context:** Phase 9 first shipped the orders list as a card below Holdings on the Portfolio
   page. In practice that page then had **two large tables stacked**, which read as cluttered
   and left neither as the obvious primary content. The two also answer different questions:
-  holdings are a *current-state snapshot* you glance at, orders are a *time-ordered activity
-  log* you scan and act on. Meanwhile the nav had five primary items, one of which (`News`)
+  holdings are a _current-state snapshot_ you glance at, orders are a _time-ordered activity
+  log_ you scan and act on. Meanwhile the nav had five primary items, one of which (`News`)
   was still an empty placeholder.
 - **Decision:** Give orders a top-level route (`/orders`) and nav tab, and **remove News**
   entirely — nav item, route, stub view, and its roadmap/feature entries — freeing the slot so
@@ -322,7 +322,7 @@ decision is made. Keep them short.
   stocks. So we over-fetch the screener's maximum (`top=50`) and filter down: price ≥ $5,
   `|change|` ≤ 100% (a bigger day is almost always a reverse split, not a move), then a
   `GET /v2/assets/{symbol}` lookup (cached 24h — names are static) to drop non-tradable symbols,
-  odd exchanges, warrants/rights/units, and any name that looks like both a fund *and* a geared
+  odd exchanges, warrants/rights/units, and any name that looks like both a fund _and_ a geared
   one. That lookup does double duty: the screener returns symbols only, so it's also where
   company names come from. Plain 1x funds are kept — they're ordinary instruments.
 - **Requests:** everything is batched. `GET /v2/stocks/snapshots?symbols=…` prices a whole list
@@ -410,10 +410,10 @@ decision is made. Keep them short.
 - **Status:** Accepted (Polish)
 - **Context:** Two issues surfaced on the Chart page. First, `OrderPanel` looked
   visually unaligned with the chart card: the symbol/price header lived inside the
-  *left* grid column above the chart card, so the order panel (the grid's other
+  _left_ grid column above the chart card, so the order panel (the grid's other
   column) started level with the header text rather than the chart card's top edge.
   Second, the secondary Open/High/Low/Vol row was computed from whichever candles
-  happened to be loaded for the *selected timeframe* (`useChartStore`) — so switching
+  happened to be loaded for the _selected timeframe_ (`useChartStore`) — so switching
   to `1Y` showed a year's open/high/low instead of today's, and there was no market
   cap, 52-week range, P/E or dividend yield anywhere, despite `docs/05-features.md`
   already claiming "key stats". Alpaca (already used for candles/markets/account) has
@@ -491,6 +491,98 @@ decision is made. Keep them short.
   live WebSocket still carries `VITE_FINNHUB_API_KEY` in the bundle (ADR-015/021). This is
   auth scoped to the actual risk, not a user system: if the app ever needs per-user
   watchlists or its own Alpaca sub-accounts, this gets replaced rather than extended.
+
+---
+
+## ADR-025 — Polish: state placeholders live in the store, accessibility in the markup
+
+- **Status:** Accepted (Phase 11)
+- **Context:** Ten phases of feature work left the app's _edges_ inconsistent. Loading was
+  whatever each page reached for at the time — `DataTable :loading` on Watchlist and
+  Holdings (the exact binding `CLAUDE.md` warns leaves a click-blocking mask), a centred
+  `ProgressSpinner` on Orders and Markets, and nothing at all behind the stat cards and
+  `SymbolStatsHeader`, which sat at `—` and `$0.00` until data landed and then jumped.
+  Only `OrdersView` and `MarketsView` distinguished a first load from a refresh, and they
+  did it in the view (`loading && items.length === 0`), so the 5s order poll and the 60s
+  markets poll happened not to flash — by luck of where the check lived, not by design.
+  Accessibility had a decent floor (landmarks, `aria-label` on icon buttons, signed
+  numbers rather than colour alone) with specific holes: no `<h1>` on the two most
+  important pages, one `document.title` for the whole SPA, the symbol search and the
+  entire order ticket unlabelled, `MoversTable` rows navigable by mouse only, and two
+  canvas charts completely invisible to assistive tech.
+- **Decision:**
+  - **"Is this the first load?" is store state, not view state.** Each fetch concern sets
+    a `hasLoaded` flag in its `finally` (on failure too) and exposes an `initialLoading`
+    computed. Views render placeholders off that and never off raw `loading`, so a
+    refresh, a poll and a range switch update in place by default. Where a user-initiated
+    refetch _should_ signal progress (chart timeframe, portfolio range) the old data stays
+    up under a translucent spinner rather than being replaced.
+  - **Two shared primitives, not per-page markup.** `EmptyState` (icon, headline,
+    explanation, optional action) and `TableSkeleton` (a header row plus placeholder
+    rows). The skeleton renders _instead of_ the table rather than over it — that
+    sidesteps PrimeVue's orphaned-mask bug by construction instead of remembering not to
+    trigger it.
+  - **"Empty" and "broken" are different states.** An error with no cached data gets its
+    own `EmptyState` ("Orders are unavailable") alongside the technical `Message`, instead
+    of an error banner over a blank card or, worse, an empty-state that blames the user.
+  - **Canvas charts get a sentence, not a table.** `PriceChart` / `PortfolioChart` take an
+    `ariaLabel` and expose `role="img"` — "NVDA 1D candlestick chart. $212.96, +0.93% over
+    the range." A full data-table alternative was rejected: the numbers it would list are
+    already on screen in `SymbolStatsHeader` and the holdings table.
+  - **Route changes are announced.** `meta.title` per route drives both `document.title`
+    and an `aria-live="polite"` region, because an SPA navigation moves neither focus nor
+    the screen reader's cursor.
+  - **`min-width` on tables is a floor, not a target.** `tableStyle="min-width"` was
+    initially set by eye and _stretched_ tables past the viewport, pushing Change % and
+    Total P/L out of view — the opposite of the intent. Each is now tuned to the table's
+    measured min-content width, and mobile additionally drops the avatar and the
+    lowest-priority column per table so the remaining columns fit a 375px screen.
+- **Consequences:** Every surface now has a defined look for loading, empty and broken,
+  and the rules for which one shows live in one place per concern. Three latent bugs fell
+  out of the audit and are fixed: a Markets region switch captioned the outgoing region's
+  rows with the incoming region's scope, `setSymbol` left the previous symbol's candles
+  under the loading state (so the header's price briefly described the wrong stock), and
+  `loadStats` swallowed its error so a failed Finnhub call was indistinguishable from a
+  symbol with no fundamentals. Deliberately **not** done: no automated accessibility test
+  (axe, Playwright) — the app has one unit test and adding a whole harness for a solo
+  portfolio piece isn't worth it, so this pass is a point-in-time audit that a future
+  change can regress.
+
+- **Colour contrast — the domain tokens are now theme-aware.** An eyeball review passed
+  them; computing WCAG relative luminance against the surfaces they actually sit on did
+  not. The single `#16c784` / `#ea3943` pair was tuned for near-black, and the green as
+  text on a light card is **2.20:1** — under half the 4.5:1 floor — so every light-theme
+  `PriceTag` gain failed, as did the white label on the `bg-buy` fill at the same ratio.
+
+  The decision was to give **each theme its own tone** rather than hunt for one compromise
+  pair that satisfies both. The vivid tones stay on dark surfaces, where the green is
+  already 7.86:1; light mode overrides them to `#0d774f` / `#c73039` on
+  `:root:not(.app-dark)` — a `:not()` rather than a plain `:root` so it outranks the
+  `@theme` defaults without depending on cascade-layer ordering. The dark red is also
+  nudged to `#ec4d56`, lifting it from 4.25:1 to 4.75:1 on a card.
+
+  Overriding the **tokens** instead of adding light-mode utilities at each call site is
+  what preserves the single-source rule: `buy`/`sell`/`profit`/`loss` follow because they
+  alias `up`/`down`, both charts follow because they read the tokens via `getComputedStyle`
+  on an existing `ui.isDark` watcher, and the sector heatmap follows because its tints are
+  opacity modifiers on the same tokens. Only one thing could not be aliased — a filled
+  button's label, since a per-theme fill needs near-black on dark and white on light. Hence
+  `--color-buy-contrast` / `--color-sell-contrast`, deliberately not derived from
+  `up`/`down` because they are the inverse of the fill, not the same value.
+
+  Auditing every rendered text node rather than the tokens alone then turned up three
+  failures unrelated to the domain colours, all the same shape — text over a tint, where
+  the tint erodes a ratio that passes on plain card:
+
+  | Element                                                      | Was    | Fix                                                                                        |
+  | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------ |
+  | `SectorHeatmap` label on the strongest tile                  | 4.14:1 | top shade capped at 40% opacity, label off `text-muted-color` (only 4.8:1 even untinted)   |
+  | Active nav item: Aura light `primary.500` on `bg-primary/15` | 3.74:1 | light scheme's primary/hover/active shifted one step down the ramp (600/700/800)           |
+  | `SelectButton` resting label on its own `slate.100` track    | 4.34:1 | `togglebutton.color` → `surface.600`, stepping cleanly into the existing `slate.700` hover |
+
+  The audit now reports zero failures across all six routes in both themes, including both
+  states of the Buy/Sell toggle. Independently of the ratios, colour is never the sole
+  carrier of meaning — every price is signed or arrowed — so WCAG 1.4.1 holds regardless.
 
 ---
 

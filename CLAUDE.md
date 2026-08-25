@@ -119,7 +119,7 @@ Numbers (prices, P/L): use Tailwind's `tabular-nums` so digits don't jitter.
 ### Gotchas
 
 - **CSS layer order matters.** `main.ts` sets PrimeVue `cssLayer.order: 'theme, base,
-  primevue'` so Tailwind utilities can override PrimeVue component styles without
+primevue'` so Tailwind utilities can override PrimeVue component styles without
   `!important`. Don't remove this.
 - **Dark mode** is driven by `.app-dark` on `<html>` (`darkModeSelector`), aligned with
   Tailwind's `dark:` variant via `@custom-variant dark` in `main.css`.
@@ -226,6 +226,37 @@ flips the store back to signed out and reopens the prompt. Netlify Identity and 
 providers were rejected — one shared Alpaca account makes per-user sign-up meaningless, and
 Identity's server helpers would force `netlify dev` locally. See ADR-024.
 
-**Next:** finish Polish (Phase 11: skeletons, a11y pass, responsive QA) and the project
-README; plus the deferred WebSocket-behind-BFF item and the unmetered-provider-quota gap on
-the public read endpoints. See `docs/06-roadmap.md` for authoritative status.
+Phase 11 (Polish) — mostly done. Two shared primitives, `EmptyState` and `TableSkeleton`,
+replace the ad-hoc empty blocks and centred spinners, and `StatCard` takes a `loading` prop.
+Every fetch concern now separates **first load from refresh** with a `hasLoaded`-style flag
+exposed as `initialLoading` / `positionsInitialLoading` / …, so polling and Refresh no longer
+flash placeholders. Accessibility: skip link → `main#main-content`, one `<h1>` per route,
+`document.title` + an `aria-live` announcer driven by `meta.title`, real labels on the symbol
+search and every order-ticket field, `aria-pressed` on the Buy/Sell toggle, keyboard-operable
+symbol buttons in `MoversTable`, `aria-label` text alternatives on the canvas charts,
+`aria-current` on nav links, `aria-hidden` on decorative icons, and a global
+`prefers-reduced-motion` opt-out. Responsive: `env(safe-area-inset-bottom)` on the bottom nav
+and `<main>`, wide tables scroll inside their own card via `tableStyle="min-width"`, and
+mobile drops the avatar plus the lowest-priority column per table. See ADR-025.
+
+**Contrast — the domain tokens are theme-aware, don't collapse them back.** The vivid pair
+was tuned for near-black: `#16c784` as text on a light card is 2.20:1, under half the 4.5:1
+AA floor. So `up`/`down` keep the vivid tones under `.app-dark` and are re-toned to
+`#0d774f`/`#c73039` on `:root:not(.app-dark)` (a `:not()` so it outranks the `@theme`
+defaults without depending on layer order). Because the override is on the **tokens**, the
+buy/sell/profit/loss aliases, both charts (they `getComputedStyle` on a `ui.isDark` watcher)
+and the heatmap tints all follow for free. Filled buttons can't alias this — a per-theme
+fill needs a near-black label on dark and white on light — so use `text-buy-contrast` /
+`text-sell-contrast` on `bg-buy` / `bg-sell`, never `text-white`.
+
+Related trap: **text over a tint** erodes a ratio that passes on plain card.
+`text-muted-color` is only 4.8:1 on a light card, so it fails over any tint — that's why
+`SectorHeatmap` labels use body text with its top shade capped at 40%, the order ticket's
+resting Buy/Sell label is `surface-600`, and the preset shifts the light scheme's
+primary one step down the ramp (Aura's `primary.500` was 3.74:1 on the active nav item's
+`bg-primary/15`) plus sets `togglebutton.color` to `surface.600`. Every text node on all six
+routes now passes in both themes; ratios in `docs/03-design-system.md`.
+
+**Next:** the project README, plus the deferred WebSocket-behind-BFF item and the
+unmetered-provider-quota gap on the public read endpoints. See `docs/06-roadmap.md` for
+authoritative status.
