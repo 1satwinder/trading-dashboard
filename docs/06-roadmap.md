@@ -252,4 +252,9 @@ _News was dropped from scope (ADR-019); the nav slot it occupied is now Orders._
       the demo is fully browsable; signed out, the order panel shows "Sign in to trade" and
       the Orders page hides cancel. `APP_PASSCODE` + `SESSION_SECRET` must be set in
       Netlify. See ADR-024.)_
-- [ ] Write the project README (screenshots, live demo, setup).
+- [x] Write the project README (screenshots, live demo, setup).
+      _(Root `README.md`: features, tech stack, brief architecture diagram, `Getting
+      started` + API keys table, scripts, deployment notes, and the known-limitations
+      callout from ADR-021, with a live link to the Netlify demo. Four screenshots
+      (Watchlist, Portfolio, Chart, Markets) in `docs/screenshots/`, refreshed after
+      the Phase 11 UI/accessibility polish so they match the current app.)_
