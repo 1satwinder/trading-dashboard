@@ -18,6 +18,11 @@
  * negative). The buy/sell/profit/loss tokens are aliases so they can never
  * drift apart — change one hex and everything updates.
  */
+
+/* Tailwind automatically created matching utilities for the color tokens defined in @theme
+ .bg-buy, .bg-sell, .bg-profit, .bg-loss, 
+ .text-buy, .text-sell, .text-profit, .text-loss
+ */
 @theme {
   --color-up: #16c784;
   --color-down: #ea3943;

@@ -27,6 +27,8 @@ export const XtradingPreset = definePreset(Aura, {
       900: '#1d356b',
       950: '#142244',
     },
+    // A token can be defined per color scheme
+    // using light and dark properties of the colorScheme property.
     colorScheme: {
       dark: {
         // Near-black surface ramp mapped to the design system so that Aura's
